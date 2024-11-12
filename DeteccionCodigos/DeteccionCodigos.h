@@ -4,6 +4,8 @@
 #include "ui_DeteccionCodigos.h"
 #include "VideoAcquisition.h"
 #include "opencv2/opencv.hpp"
+#include <QTimer>
+#include <QDebug>
 
 class DeteccionCodigos : public QMainWindow
 {
@@ -14,14 +16,8 @@ public:
     ~DeteccionCodigos();
 
 private slots:
-    // Create the Slots
-    void EnableButtons(bool);
-    void StartStopCapture(bool);
-    void SaveImage();
-    void GetImage();
-    void Clear();
-    void NewImage(cv::Mat);
     void updateImage();
+	void StopButtons(bool);
 
 
 private:
