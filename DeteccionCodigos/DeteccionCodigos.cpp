@@ -11,15 +11,11 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
 
     // Configurar el botón como checkable
     ui.btnStop->setCheckable(true);
+    ui.btnRecord->setCheckable(true);
 
     // Conectar la señal del botón a la función de detener captura
-    connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StopButtons(bool)));
-
-    // Empezar el proceso de captura
-    camera->startStopCapture(true);
-
-    // Llamar a la función para empezar a capturar imágenes
-    showImageInLabel();
+	connect(ui.btnRecord, SIGNAL(clicked(bool)), this, SLOT(RecordButton(bool)));
+    connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StropButton(bool)));
 }
 
 // Destructor
@@ -29,7 +25,7 @@ DeteccionCodigos::~DeteccionCodigos()
 // Función para mostrar la imagen en la interfaz
 void DeteccionCodigos::showImageInLabel() {
     // Crear un temporizador para actualizar la imagen cada 10ms
-    QTimer *timer = new QTimer(this);
+    timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), this, SLOT(updateImage()));
     timer->start(15);
 }
@@ -49,11 +45,32 @@ void DeteccionCodigos::updateImage() {
     ui.label->setPixmap(QPixmap::fromImage(qimg));
 }
 
-void DeteccionCodigos::StopButtons(bool captura) {
+void DeteccionCodigos::RecordButton(bool captura) {
+	qDebug() << "Boton Record pulsado: " << captura;
+	// Si el botón está pulsado está activo
+	if (captura) {
+		// si no hay temporizador, crear uno
+        if (!timer) {
+			camera->startStopCapture(true);
+            showImageInLabel();
+        }  
+        else {
+			timer->start(15);
+        }
+	}
+	else {
+		// eliminar el temporizador
+		timer->stop();
+		// borrar la imagen
+		ui.label->clear();
+	}
+}
+
+void DeteccionCodigos::StropButton(bool captura) {
     qDebug() << "Boton Stop pulsado: " << captura;
 
     // Invertir el valor si `startStopCapture` requiere `true` para iniciar y `false` para detener
-    camera->startStopCapture(!captura);
+    camera->startStopCapture(captura);
 }
 
 

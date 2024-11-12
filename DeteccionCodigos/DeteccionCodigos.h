@@ -17,14 +17,16 @@ public:
 
 private slots:
     void updateImage();
-	void StopButtons(bool);
+	void StropButton(bool);
+	void RecordButton(bool);
 
 
 private:
     Ui::DeteccionCodigosClass ui;
     CVideoAcquisition* camera;
-    cv::Mat ImageIndex;
-    bool isActive = false;
+	// timer para actualizar la imagen
+	QTimer *timer;
+
 
 	void showImageInLabel();
 };
