@@ -35,6 +35,9 @@ void DeteccionCodigos::updateImage() {
     
     // Espejo de la imagen
     qimg = qimg.mirrored(true, false);
+
+	// Redimensionar la imagen para que se ajuste al tamaño de la etiqueta
+	qimg = qimg.scaled(ui.label->size(), Qt::KeepAspectRatio, Qt::FastTransformation);
     
     // Mostrar la imagen en la interfaz
     ui.label->setPixmap(QPixmap::fromImage(qimg));
