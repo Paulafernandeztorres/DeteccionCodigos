@@ -5,7 +5,7 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
 {
     ui.setupUi(this);
 
-    camera = new CVideoAcquisition("rtsp://admin::admin@192.168.1.101:8554/profile0");
+    camera = new CVideoAcquisition("rtsp://admin:admin@192.168.1.101:8554/profile0");
 
     // Empezar el proceso de capturar imágenes de la librería
     camera->startStopCapture(true);
