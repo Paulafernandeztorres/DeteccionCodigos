@@ -21,6 +21,7 @@ private slots:
     void GetImage();
     void Clear();
     void NewImage(cv::Mat);
+    void updateImage();
 
 
 private:
@@ -28,6 +29,8 @@ private:
     CVideoAcquisition* camera;
     cv::Mat ImageIndex;
     bool isActive = false;
+
+	void showImageInLabel();
 };
 
 
