@@ -80,56 +80,61 @@ void DeteccionCodigos::StropButton(bool captura) {
 
 void DeteccionCodigos::ProcesarImagen()
 {
-    // Paso 1: Convertir la imagen a escala de grises
+    // Convertir la imagen a escala de grises
     Mat gris;
     cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
 
-    // Paso 2: Aplicar un filtro Gaussiano para suavizar la imagen
+    // Aplicar un filtro Gaussiano para suavizar la imagen
     Mat suavizada;
     GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);
 
-    // Paso 3: Aplicar un umbral (threshold) adaptativo
+    // Aplicar un umbral (threshold) adaptativo
     Mat umbralizada;
     threshold(suavizada, umbralizada, 0, 255, cv::THRESH_BINARY + cv::THRESH_OTSU);
 
     // Mostrar la imagen procesada
-    namedWindow("Imagen Procesada 1", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
-    imshow("Imagen Procesada 1", umbralizada);
+    namedWindow("Imagen Binarizada", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
+    imshow("Imagen Binarizada", umbralizada);
+    
+    // Convertir la imagen original a espacio de color HSV
+    Mat hsv;
+    cvtColor(imgcapturada, hsv, cv::COLOR_BGR2HSV);
 
-    // Paso 4: Detección de bordes con Canny
-    Mat bordes;
-    Canny(umbralizada, bordes, 50, 150);
+    // Crear una máscara para el color rojo (ajustar los rangos si es necesario)
+    Mat mascaraRoja;
+    inRange(hsv, Scalar(0, 100, 100), Scalar(10, 255, 255), mascaraRoja); // Rango para rojo en HSV
+    Mat mascaraRojaAlta;
+    inRange(hsv, Scalar(160, 100, 100), Scalar(179, 255, 255), mascaraRojaAlta);
+    mascaraRoja = mascaraRoja | mascaraRojaAlta;
 
-    // Paso 5: Detección de contornos
-    vector<vector<Point>> contornos;
-    findContours(bordes, contornos, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    // Aplicar una operación de cerrado (morfología) para rellenar los huecos
+    Mat mascaraRojaCerrada;
+    Mat elemento = getStructuringElement(MORPH_RECT, Size(5, 5)); // Tamaño del elemento estructurante
+    morphologyEx(mascaraRoja, mascaraRojaCerrada, MORPH_CLOSE, elemento);
 
-    // Paso 6: Encontrar el contorno más grande
-    int indiceContornoMax = 0;
-    double areaMax = contourArea(contornos[0]);
-    for (size_t i = 1; i < contornos.size(); i++) {
-        double area = contourArea(contornos[i]);
-        if (area > areaMax) {
-            areaMax = area;
-            indiceContornoMax = i;
-        }
-    }
+    // Mostrar la imagen procesada
+    namedWindow("Zona Roja", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
+    imshow("Zona Roja", mascaraRojaCerrada);
 
-    // Paso 7: Crear una máscara para el área dentro del contorno
-    Mat mascara = Mat::zeros(umbralizada.size(), CV_8UC1);
-    drawContours(mascara, contornos, indiceContornoMax, Scalar(255), cv::FILLED);
+    // Crear una máscara para el color verde (ajustar los rangos si es necesario)
+    Mat mascaraVerde;
+    inRange(hsv, Scalar(40, 70, 70), Scalar(80, 255, 255), mascaraVerde); // Ajuste más preciso para verde en HSV
 
-    // Paso 9: Aplicar la máscara para conservar solo el área dentro del contorno en la imagen binarizada
-    Mat resultado;
-    umbralizada.copyTo(resultado, mascara);
+    // Aplicar una operación de cerrado (morfología) para rellenar los huecos
+    Mat mascaraVerdeCerrada;
+    morphologyEx(mascaraVerde, mascaraVerdeCerrada, MORPH_CLOSE, elemento);
 
-    // Paso 8: Rellenar huecos en la máscara usando un cierre morfológico
-    Mat kernel = getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)); // Kernel de tamaño ajustable
-    morphologyEx(resultado, resultado, cv::MORPH_CLOSE, kernel);
+    // Mostrar la imagen procesada para la zona verde
+    namedWindow("Zona Verde", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
+    imshow("Zona Verde", mascaraVerdeCerrada);
 
-    //// Mostrar la imagen procesada
-    //namedWindow("Imagen Procesada 2", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
-    //imshow("Imagen Procesada 2", resultado);
+    // Sumar las máscaras roja y verde (realizar una operación OR)
+    Mat mascaraCombinada;
+    bitwise_or(mascaraRojaCerrada, mascaraVerdeCerrada, mascaraCombinada);
+
+    // Mostrar la imagen combinada
+    namedWindow("Zona Combinada", WINDOW_NORMAL);
+    imshow("Zona Combinada", mascaraCombinada);
 }
 
 
