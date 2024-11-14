@@ -27,7 +27,7 @@ void DeteccionCodigos::showImageInLabel() {
     // Crear un temporizador para actualizar la imagen cada 10ms
     timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), this, SLOT(updateImage()));
-    timer->start(15);
+    timer->start(5);
 }
 
 // Función para actualizar la imagen
@@ -55,7 +55,7 @@ void DeteccionCodigos::RecordButton(bool captura) {
             showImageInLabel();
         }  
         else {
-			timer->start(15);
+			timer->start(5);
         }
 	}
 	else {
@@ -70,7 +70,12 @@ void DeteccionCodigos::StropButton(bool captura) {
     qDebug() << "Boton Stop pulsado: " << captura;
 
     // Invertir el valor si `startStopCapture` requiere `true` para iniciar y `false` para detener
-    camera->startStopCapture(captura);
+    camera->startStopCapture(!captura);
+    Mat img = camera->getImage();
+
+    namedWindow("Imagen Capturada", WINDOW_NORMAL);
+    imshow("Imagen Capturada", img);
+
 }
 
 
