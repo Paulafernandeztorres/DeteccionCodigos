@@ -16,6 +16,7 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
     // Conectar la señal del botón a la función de detener captura
 	connect(ui.btnRecord, SIGNAL(clicked(bool)), this, SLOT(RecordButton(bool)));
     connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StropButton(bool)));
+    connect(ui.btnProcesarImagen, SIGNAL(clicked(bool)), this, SLOT(ProcesarImagen()));
 }
 
 // Destructor
@@ -71,11 +72,64 @@ void DeteccionCodigos::StropButton(bool captura) {
 
     // Invertir el valor si `startStopCapture` requiere `true` para iniciar y `false` para detener
     camera->startStopCapture(!captura);
-    Mat img = camera->getImage();
+    imgcapturada = camera->getImage();
 
     namedWindow("Imagen Capturada", WINDOW_NORMAL);
-    imshow("Imagen Capturada", img);
+    imshow("Imagen Capturada", imgcapturada);
+}
 
+void DeteccionCodigos::ProcesarImagen()
+{
+    // Paso 1: Convertir la imagen a escala de grises
+    Mat gris;
+    cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
+
+    // Paso 2: Aplicar un filtro Gaussiano para suavizar la imagen
+    Mat suavizada;
+    GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);
+
+    // Paso 3: Aplicar un umbral (threshold) adaptativo
+    Mat umbralizada;
+    threshold(suavizada, umbralizada, 0, 255, cv::THRESH_BINARY + cv::THRESH_OTSU);
+
+    // Mostrar la imagen procesada
+    namedWindow("Imagen Procesada 1", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
+    imshow("Imagen Procesada 1", umbralizada);
+
+    // Paso 4: Detección de bordes con Canny
+    Mat bordes;
+    Canny(umbralizada, bordes, 50, 150);
+
+    // Paso 5: Detección de contornos
+    vector<vector<Point>> contornos;
+    findContours(bordes, contornos, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+    // Paso 6: Encontrar el contorno más grande
+    int indiceContornoMax = 0;
+    double areaMax = contourArea(contornos[0]);
+    for (size_t i = 1; i < contornos.size(); i++) {
+        double area = contourArea(contornos[i]);
+        if (area > areaMax) {
+            areaMax = area;
+            indiceContornoMax = i;
+        }
+    }
+
+    // Paso 7: Crear una máscara para el área dentro del contorno
+    Mat mascara = Mat::zeros(umbralizada.size(), CV_8UC1);
+    drawContours(mascara, contornos, indiceContornoMax, Scalar(255), cv::FILLED);
+
+    // Paso 9: Aplicar la máscara para conservar solo el área dentro del contorno en la imagen binarizada
+    Mat resultado;
+    umbralizada.copyTo(resultado, mascara);
+
+    // Paso 8: Rellenar huecos en la máscara usando un cierre morfológico
+    Mat kernel = getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)); // Kernel de tamaño ajustable
+    morphologyEx(resultado, resultado, cv::MORPH_CLOSE, kernel);
+
+    //// Mostrar la imagen procesada
+    //namedWindow("Imagen Procesada 2", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
+    //imshow("Imagen Procesada 2", resultado);
 }
 
 

@@ -19,6 +19,7 @@ private slots:
     void updateImage();
 	void StropButton(bool);
 	void RecordButton(bool);
+    void ProcesarImagen();
 
 
 private:
@@ -26,6 +27,7 @@ private:
     CVideoAcquisition* camera;
 	// timer para actualizar la imagen
 	QTimer *timer;
+    Mat imgcapturada;
 
 
 	void showImageInLabel();
