@@ -17,6 +17,7 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
 	connect(ui.btnRecord, SIGNAL(clicked(bool)), this, SLOT(RecordButton(bool)));
     connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StropButton(bool)));
     connect(ui.btnProcesarImagen, SIGNAL(clicked(bool)), this, SLOT(ProcesarImagen()));
+	connect(ui.btnSaveImage, SIGNAL(clicked(bool)), this, SLOT(SaveImageButton()));
 }
 
 // Destructor
@@ -33,8 +34,8 @@ void DeteccionCodigos::showImageInLabel() {
 
 // Función para actualizar la imagen
 void DeteccionCodigos::updateImage() {
-    Mat img = camera->getImage();
-    QImage qimg = QImage((const unsigned char *)( img.data ), img.cols, img.rows, img.step, QImage::Format_BGR888);
+    imgcapturada = camera->getImage();
+    QImage qimg = QImage((const unsigned char *)( imgcapturada.data ), imgcapturada.cols, imgcapturada.rows, imgcapturada.step, QImage::Format_BGR888);
 
     // Espejo de la imagen
     qimg = qimg.mirrored(true, false);
@@ -72,10 +73,6 @@ void DeteccionCodigos::StropButton(bool captura) {
 
     // Invertir el valor si `startStopCapture` requiere `true` para iniciar y `false` para detener
     camera->startStopCapture(!captura);
-    imgcapturada = camera->getImage();
-
-    namedWindow("Imagen Capturada", WINDOW_NORMAL);
-    imshow("Imagen Capturada", imgcapturada);
 }
 
 void DeteccionCodigos::ProcesarImagen()
@@ -137,46 +134,22 @@ void DeteccionCodigos::ProcesarImagen()
     imshow("Zona Combinada", mascaraCombinada);
 }
 
-
-
-//// Función para activar los demas botones
-//void DeteccionCodigos::EnableButtons(bool) {
-//    isActive = !isActive; // Cambiar de estado el booleano si se pulsa el boton Enable
-//    if (isActive) {
-//        // si isActive es true activamos los botones
-//        connect(ui.btnRecord, SIGNAL(toggle(bool)), camera, SLOT(StartStopCapture(bool)));
-//        connect(ui.btnSaveImage, SIGNAL(clicked()), this, SLOT(SaveImage()));
-//        connect(ui.btnLastImage, SIGNAL(clicked()), this, SLOT(GetImage()));
-//        connect(ui.btnClear, SIGNAL(clicked()), this, SLOT(Clear()));
-//        connect(camera, SIGNAL(newImageSignal(Mat)), this, SLOT(NewImage(Mat)));
-//    }
-//    else {
-//        // si isActive es false desactivamos los botones
-//        disconnect(ui.btnRecord, SIGNAL(toggle(bool)), camera, SLOT(StartStopCapture(bool)));
-//        disconnect(ui.btnSaveImage, SIGNAL(clicked()), this, SLOT(SaveImage()));
-//        disconnect(ui.btnLastImage, SIGNAL(clicked()), this, SLOT(GetImage()));
-//        disconnect(ui.btnClear, SIGNAL(clicked()), this, SLOT(Clear()));
-//        disconnect(camera, SIGNAL(newImageSignal(Mat)), this, SLOT(NewImage(Mat)));
-//    }
-//}
-//
-//
-//void DeteccionCodigos::StartStopCapture(bool) {
-//    
-//}
-//
-//void DeteccionCodigos::SaveImage() {
-//
-//}
-//
-//void DeteccionCodigos::GetImage() {
-//
-//}
-//
-//void DeteccionCodigos::Clear() {
-//
-//}
-//
-//void DeteccionCodigos::NewImage(Mat) {
-//
-//}
+void DeteccionCodigos::SaveImageButton()
+{
+	// comprobar si hay texto en lineEdit
+	if (ui.lineEdit->text().isEmpty()) {
+		// si no hay texto, mostrar un mensaje de error
+		QMessageBox::warning(this, "Error", "Introduce un nombre para la imagen");
+	}
+	else {
+		// si hay texto, guardar la imagen
+		contadorImagen++;
+		// Nombre de la imagen a guardar (nombre +G1+ contador)
+		QString filename = ui.lineEdit->text() + "_G1_" + QString::number(contadorImagen);
+		// Ruta de la imagen en Resource Files/Imagenes dentro del proyecto
+		QString rutaImagen = "C:/Users/migue/source/repos/DeteccionCodigos/Imagenes/" + filename + ".jpg";
+		imwrite(rutaImagen.toStdString(), imgcapturada);
+		// Mostrar un mensaje de información con el nombre de la imagen guardada
+		QMessageBox::information(this, "Imagen guardada", "Imagen guardada con nombre: " + filename);
+	}
+}

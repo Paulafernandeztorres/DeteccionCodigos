@@ -4,6 +4,7 @@
 #include "ui_DeteccionCodigos.h"
 #include "VideoAcquisition.h"
 #include "opencv2/opencv.hpp"
+#include <QMessageBox>
 #include <QTimer>
 #include <QDebug>
 
@@ -20,6 +21,7 @@ private slots:
 	void StropButton(bool);
 	void RecordButton(bool);
     void ProcesarImagen();
+	void SaveImageButton();
 
 
 private:
@@ -28,6 +30,9 @@ private:
 	// timer para actualizar la imagen
 	QTimer *timer;
     Mat imgcapturada;
+
+	// contador de imagen capturada
+	int contadorImagen = 0;
 
 
 	void showImageInLabel();
