@@ -22,7 +22,7 @@ private slots:
 	void RecordButton(bool);
     void ProcesarImagen();
 	void SaveImageButton();
-
+	void DecodificarCodigoDeBarras();
 
 private:
     Ui::DeteccionCodigosClass ui;

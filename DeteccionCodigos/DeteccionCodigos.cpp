@@ -16,7 +16,7 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
     // Conectar la señal del botón a la función de detener captura
 	connect(ui.btnRecord, SIGNAL(clicked(bool)), this, SLOT(RecordButton(bool)));
     connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StropButton(bool)));
-    connect(ui.btnProcesarImagen, SIGNAL(clicked(bool)), this, SLOT(ProcesarImagen()));
+    connect(ui.btnProcesarImagen, SIGNAL(clicked(bool)), this, SLOT(DecodificarCodigoDeBarras()));
 	connect(ui.btnSaveImage, SIGNAL(clicked(bool)), this, SLOT(SaveImageButton()));
 }
 
@@ -35,7 +35,24 @@ void DeteccionCodigos::showImageInLabel() {
 // Función para actualizar la imagen
 void DeteccionCodigos::updateImage() {
     imgcapturada = camera->getImage();
-    QImage qimg = QImage((const unsigned char *)( imgcapturada.data ), imgcapturada.cols, imgcapturada.rows, imgcapturada.step, QImage::Format_BGR888);
+    // Convertir la imagen a escala de grises
+    Mat gris;
+    cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
+
+    // Aplicar un filtro Gaussiano para reducir el ruido
+    Mat suavizada;
+    GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);
+
+    // Aplicar un umbral adaptativo para binarizar la imagen
+    Mat umbralizada;
+    adaptiveThreshold(suavizada, umbralizada, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 2);
+
+    // Detectar bordes usando Canny
+    Mat bordes;
+    Canny(umbralizada, bordes, 50, 150, 3);
+
+	// Convertir la imagen a formato QImage
+	QImage qimg(bordes.data, bordes.cols, bordes.rows, bordes.step, QImage::Format_Grayscale8);
 
     // Espejo de la imagen
     qimg = qimg.mirrored(true, false);
@@ -69,20 +86,16 @@ void DeteccionCodigos::RecordButton(bool captura) {
 }
 
 void DeteccionCodigos::StropButton(bool captura) {
-    qDebug() << "Boton Stop pulsado: " << captura;
-
-    // Invertir el valor si `startStopCapture` requiere `true` para iniciar y `false` para detener
+	qDebug() << "Boton Stop pulsado: " << captura;
+	// Si el botón está pulsado está activo
     camera->startStopCapture(!captura);
 }
 
 void DeteccionCodigos::ProcesarImagen()
 {
-    // Convertir la imagen a escala de grises
-    Mat gris;
+    // Convertir la imagen a escala de grises y aplicar un filtro Gaussiano para suavizar la imagen
+    Mat gris, suavizada;
     cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
-
-    // Aplicar un filtro Gaussiano para suavizar la imagen
-    Mat suavizada;
     GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);
 
     // Aplicar un umbral (threshold) adaptativo
@@ -90,48 +103,75 @@ void DeteccionCodigos::ProcesarImagen()
     threshold(suavizada, umbralizada, 0, 255, cv::THRESH_BINARY + cv::THRESH_OTSU);
 
     // Mostrar la imagen procesada
-    namedWindow("Imagen Binarizada", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
     imshow("Imagen Binarizada", umbralizada);
-    
+
     // Convertir la imagen original a espacio de color HSV
     Mat hsv;
     cvtColor(imgcapturada, hsv, cv::COLOR_BGR2HSV);
 
-    // Crear una máscara para el color rojo (ajustar los rangos si es necesario)
-    Mat mascaraRoja;
+    // Crear máscaras para los colores rojo y verde
+    Mat mascaraRoja, mascaraRojaAlta, mascaraVerde, mascaraCombinada;
     inRange(hsv, Scalar(0, 100, 100), Scalar(10, 255, 255), mascaraRoja); // Rango para rojo en HSV
-    Mat mascaraRojaAlta;
     inRange(hsv, Scalar(160, 100, 100), Scalar(179, 255, 255), mascaraRojaAlta);
-    mascaraRoja = mascaraRoja | mascaraRojaAlta;
+    bitwise_or(mascaraRoja, mascaraRojaAlta, mascaraRoja);
+
+    inRange(hsv, Scalar(35, 100, 100), Scalar(85, 255, 255), mascaraVerde); // Ajuste más preciso para verde en HSV
 
     // Aplicar una operación de cerrado (morfología) para rellenar los huecos
-    Mat mascaraRojaCerrada;
-    Mat elemento = getStructuringElement(MORPH_RECT, Size(5, 5)); // Tamaño del elemento estructurante
-    morphologyEx(mascaraRoja, mascaraRojaCerrada, MORPH_CLOSE, elemento);
+    static const Mat elemento = getStructuringElement(MORPH_RECT, Size(5, 5)); // Tamaño del elemento estructurante
+    morphologyEx(mascaraRoja, mascaraRoja, MORPH_CLOSE, elemento);
+    morphologyEx(mascaraVerde, mascaraVerde, MORPH_CLOSE, elemento);
 
-    // Mostrar la imagen procesada
-    namedWindow("Zona Roja", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
-    imshow("Zona Roja", mascaraRojaCerrada);
-
-    // Crear una máscara para el color verde (ajustar los rangos si es necesario)
-    Mat mascaraVerde;
-    inRange(hsv, Scalar(40, 70, 70), Scalar(80, 255, 255), mascaraVerde); // Ajuste más preciso para verde en HSV
-
-    // Aplicar una operación de cerrado (morfología) para rellenar los huecos
-    Mat mascaraVerdeCerrada;
-    morphologyEx(mascaraVerde, mascaraVerdeCerrada, MORPH_CLOSE, elemento);
-
-    // Mostrar la imagen procesada para la zona verde
-    namedWindow("Zona Verde", WINDOW_NORMAL); // O WINDOW_AUTOSIZE
-    imshow("Zona Verde", mascaraVerdeCerrada);
+    // Mostrar las imágenes procesadas
+    imshow("Zona Roja", mascaraRoja);
+    imshow("Zona Verde", mascaraVerde);
 
     // Sumar las máscaras roja y verde (realizar una operación OR)
-    Mat mascaraCombinada;
-    bitwise_or(mascaraRojaCerrada, mascaraVerdeCerrada, mascaraCombinada);
+    bitwise_or(mascaraRoja, mascaraVerde, mascaraCombinada);
 
     // Mostrar la imagen combinada
-    namedWindow("Zona Combinada", WINDOW_NORMAL);
     imshow("Zona Combinada", mascaraCombinada);
+}
+
+void DeteccionCodigos::DecodificarCodigoDeBarras()
+{
+    // Convertir la imagen a escala de grises
+    Mat gris;
+    cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
+
+    // Aplicar un filtro Gaussiano para reducir el ruido
+    Mat suavizada;
+    GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);
+
+    // Aplicar un umbral adaptativo para binarizar la imagen
+    Mat umbralizada;
+    adaptiveThreshold(suavizada, umbralizada, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 2);
+
+    // Detectar bordes usando Canny
+    Mat bordes;
+    Canny(umbralizada, bordes, 50, 150, 3);
+
+    // Encontrar contornos
+    std::vector<std::vector<Point>> contornos;
+    findContours(bordes, contornos, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    // Filtrar contornos para encontrar posibles códigos de barras
+    for (const auto &contorno : contornos) {
+        Rect rect = boundingRect(contorno);
+        float aspectRatio = (float)rect.width / (float)rect.height;
+
+        // Filtrar por aspecto y tamaño
+        if (aspectRatio > 2.0 && rect.width > 100 && rect.height > 20) {
+            // Extraer la región de interés (ROI)
+            Mat roi = imgcapturada(rect);
+
+            // Mostrar la región de interés
+            imshow("Codigo de Barras Detectado", roi);
+
+            // Aquí puedes agregar tu lógica para decodificar el código de barras
+            // Por ejemplo, podrías usar técnicas de OCR para leer el código
+        }
+    }
 }
 
 void DeteccionCodigos::SaveImageButton()
