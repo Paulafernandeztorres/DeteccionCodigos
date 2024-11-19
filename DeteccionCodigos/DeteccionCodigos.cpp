@@ -39,20 +39,27 @@ void DeteccionCodigos::updateImage() {
     Mat gris;
     cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
 
-    // Aplicar un filtro Gaussiano para reducir el ruido
+    // Aplicar un filtro Mediana para reducir el ruido
     Mat suavizada;
-    GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);
+	medianBlur(gris, suavizada, 11);
+    /*GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);*/
 
-    // Aplicar un umbral adaptativo para binarizar la imagen
+    //// Aplicar un umbral adaptativo para binarizar la imagen
     Mat umbralizada;
-    adaptiveThreshold(suavizada, umbralizada, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 2);
+    adaptiveThreshold(suavizada, umbralizada, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 11, 2);
 
     // Detectar bordes usando Canny
     Mat bordes;
-    Canny(umbralizada, bordes, 50, 150, 3);
+    Canny(suavizada, bordes, 0, 50, 3, false);
+
+	// Buscar los contronos de la imagen
+	findContours(bordes, contornos, RETR_CCOMP, CHAIN_APPROX_SIMPLE);
+
+	// Dibujar los contornos en la imagen
+	drawContours(imgcapturada, contornos, -1, Scalar(0, 0, 255), 2);
 
 	// Convertir la imagen a formato QImage
-	QImage qimg(imgcapturada.data, imgcapturada.cols, imgcapturada.rows, imgcapturada.step, QImage::Format_BGR888);
+	QImage qimg(bordes.data, bordes.cols, bordes.rows, bordes.step, QImage::Format_Grayscale8);
 
     // Espejo de la imagen
     /*qimg = qimg.mirrored(true, false);*/
@@ -135,25 +142,7 @@ void DeteccionCodigos::ProcesarImagen()
 
 void DeteccionCodigos::DecodificarCodigoDeBarras()
 {
-    // Convertir la imagen a escala de grises
-    Mat gris;
-    cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
-
-    // Aplicar un filtro Gaussiano para reducir el ruido
-    Mat suavizada;
-    GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);
-
-    // Aplicar un umbral adaptativo para binarizar la imagen
-    Mat umbralizada;
-    adaptiveThreshold(suavizada, umbralizada, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 2);
-
-    // Detectar bordes usando Canny
-    Mat bordes;
-    Canny(umbralizada, bordes, 50, 150, 3);
-
-    // Encontrar contornos
-    std::vector<std::vector<Point>> contornos;
-    findContours(bordes, contornos, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+    int codigoContador = 0; // Contador para los códigos de barras detectados
 
     // Filtrar contornos para encontrar posibles códigos de barras
     for (const auto &contorno : contornos) {
@@ -165,11 +154,12 @@ void DeteccionCodigos::DecodificarCodigoDeBarras()
             // Extraer la región de interés (ROI)
             Mat roi = imgcapturada(rect);
 
-            // Mostrar la región de interés
-            imshow("Codigo de Barras Detectado", roi);
+            // Mostrar la región de interés en una ventana separada
+            std::string windowName = "Codigo de Barras Detectado " + std::to_string(codigoContador);
+            imshow(windowName, roi);
 
-            // Aquí puedes agregar tu lógica para decodificar el código de barras
-            // Por ejemplo, podrías usar técnicas de OCR para leer el código
+            // Incrementar el contador
+            codigoContador++;
         }
     }
 }

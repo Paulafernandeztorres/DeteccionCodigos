@@ -33,6 +33,7 @@ private:
 
 	// contador de imagen capturada
 	int contadorImagen = 0;
+	std::vector<std::vector<Point>> contornos;
 
 
 	void showImageInLabel();
