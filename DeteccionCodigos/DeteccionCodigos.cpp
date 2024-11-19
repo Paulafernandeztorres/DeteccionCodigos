@@ -52,10 +52,10 @@ void DeteccionCodigos::updateImage() {
     Canny(umbralizada, bordes, 50, 150, 3);
 
 	// Convertir la imagen a formato QImage
-	QImage qimg(bordes.data, bordes.cols, bordes.rows, bordes.step, QImage::Format_Grayscale8);
+	QImage qimg(imgcapturada.data, imgcapturada.cols, imgcapturada.rows, imgcapturada.step, QImage::Format_BGR888);
 
     // Espejo de la imagen
-    qimg = qimg.mirrored(true, false);
+    /*qimg = qimg.mirrored(true, false);*/
 
     // Redimensionar la imagen para que se ajuste al tamaño de la etiqueta
     qimg = qimg.scaled(ui.label->size(), Qt::KeepAspectRatio, Qt::FastTransformation);

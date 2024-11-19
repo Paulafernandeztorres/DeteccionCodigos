@@ -7,7 +7,7 @@ CVideoAcquisition::CVideoAcquisition(QString videoStreamAddress)
 	vidcap = new VideoCapture();
 
 	//conexión con webcam
-	//cameraOK = vidcap->open(0);
+	// cameraOK = vidcap->open(0);
 
 	//conexión con cámara ip
 	cameraOK = vidcap->open(videoStreamAddress.toStdString());
