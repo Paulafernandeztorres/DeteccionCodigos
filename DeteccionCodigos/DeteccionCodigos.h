@@ -30,6 +30,7 @@ private:
 	// timer para actualizar la imagen
 	QTimer *timer;
     Mat imgcapturada;
+	Mat imagen_final;
 
 	// contador de imagen capturada
 	int contadorImagen = 0;
