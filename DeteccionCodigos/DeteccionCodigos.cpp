@@ -16,7 +16,8 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
     // Conectar la señal del botón a la función de detener captura
 	connect(ui.btnRecord, SIGNAL(clicked(bool)), this, SLOT(RecordButton(bool)));
     connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StropButton(bool)));
-    connect(ui.btnProcesarImagen, SIGNAL(clicked(bool)), this, SLOT(DecodificarCodigoDeBarras()));
+    connect(ui.btnProcesarImagen, SIGNAL(clicked(bool)), this, SLOT(ProcesarImagen()));
+    connect(ui.btnDecodificar, SIGNAL(clicked(bool)), this, SLOT(DecodificarCodigoDeBarras()));
 	connect(ui.btnSaveImage, SIGNAL(clicked(bool)), this, SLOT(SaveImageButton()));
 }
 
@@ -34,35 +35,15 @@ void DeteccionCodigos::showImageInLabel() {
 
 // Función para actualizar la imagen
 void DeteccionCodigos::updateImage() {
+    // Capturar la imagen desde la cámara
     imgcapturada = camera->getImage();
-    // Convertir la imagen a escala de grises
-    Mat gris;
-    cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
 
-    // Aplicar un filtro Mediana para reducir el ruido
-    Mat suavizada;
-	medianBlur(gris, suavizada, 11);
-    /*GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);*/
-
-    //// Aplicar un umbral adaptativo para binarizar la imagen
-    Mat umbralizada;
-    adaptiveThreshold(suavizada, umbralizada, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 11, 2);
-
-    // Detectar bordes usando Canny
-    Mat bordes;
-    Canny(suavizada, bordes, 0, 50, 3, false);
-
-	// Buscar los contronos de la imagen
-	findContours(bordes, contornos, RETR_CCOMP, CHAIN_APPROX_SIMPLE);
-
-	// Dibujar los contornos en la imagen
-	drawContours(imgcapturada, contornos, -1, Scalar(0, 0, 255), 2);
-
-	// Convertir la imagen a formato QImage
-	QImage qimg(bordes.data, bordes.cols, bordes.rows, bordes.step, QImage::Format_Grayscale8);
-
-    // Espejo de la imagen
-    /*qimg = qimg.mirrored(true, false);*/
+    // Convertir la imagen a formato QImage para mostrarla (en color, sin procesar)
+    QImage qimg(imgcapturada.data,
+        imgcapturada.cols,
+        imgcapturada.rows,
+        imgcapturada.step,
+        QImage::Format_BGR888);
 
     // Redimensionar la imagen para que se ajuste al tamaño de la etiqueta
     qimg = qimg.scaled(ui.label->size(), Qt::KeepAspectRatio, Qt::FastTransformation);
@@ -100,44 +81,67 @@ void DeteccionCodigos::StropButton(bool captura) {
 
 void DeteccionCodigos::ProcesarImagen()
 {
-    // Convertir la imagen a escala de grises y aplicar un filtro Gaussiano para suavizar la imagen
-    Mat gris, suavizada;
-    cvtColor(imgcapturada, gris, cv::COLOR_BGR2GRAY);
-    GaussianBlur(gris, suavizada, cv::Size(5, 5), 0);
+    // Cargar la imagen desde un archivo en tu ordenador
+    imgcapturada = imread("C:/Users/paufe/OneDrive/Escritorio/UNIVERSIDAD/MASTER/1º/Procesado de señales multimedia/Proyecto/images/1103.jpg", IMREAD_COLOR); // Cargar en color (BGR)
 
-    // Aplicar un umbral (threshold) adaptativo
-    Mat umbralizada;
-    threshold(suavizada, umbralizada, 0, 255, cv::THRESH_BINARY + cv::THRESH_OTSU);
+    // Verificar que la imagen se haya cargado correctamente
+    if (imgcapturada.empty()) {
+        qDebug() << "Error: No se pudo cargar la imagen.";
+        return;
+    }
 
-    // Mostrar la imagen procesada
-    imshow("Imagen Binarizada", umbralizada);
+    // Convertir la imagen a escala de grises
+    Mat imagen_gris;
+    cvtColor(imgcapturada, imagen_gris, COLOR_BGR2GRAY);
 
-    // Convertir la imagen original a espacio de color HSV
-    Mat hsv;
-    cvtColor(imgcapturada, hsv, cv::COLOR_BGR2HSV);
+    // Filtrado del ruido en la imagen (suavizado)
+    Mat imagen_suavizada;
+    blur(imagen_gris, imagen_suavizada, Size(7, 7));
 
-    // Crear máscaras para los colores rojo y verde
-    Mat mascaraRoja, mascaraRojaAlta, mascaraVerde, mascaraCombinada;
-    inRange(hsv, Scalar(0, 100, 100), Scalar(10, 255, 255), mascaraRoja); // Rango para rojo en HSV
-    inRange(hsv, Scalar(160, 100, 100), Scalar(179, 255, 255), mascaraRojaAlta);
-    bitwise_or(mascaraRoja, mascaraRojaAlta, mascaraRoja);
+    // Umbralización de la imagen con Otsu
+    Mat imagen_binaria;
+    double umbral = threshold(imagen_suavizada, imagen_binaria, 0, 255, THRESH_BINARY + THRESH_OTSU);
 
-    inRange(hsv, Scalar(35, 100, 100), Scalar(85, 255, 255), mascaraVerde); // Ajuste más preciso para verde en HSV
+    // Eliminación de colores en un rango
+    Mat mascara;
+    inRange(imagen_gris, 20, 200, mascara);
+    imagen_binaria.setTo(255, mascara);
+    bitwise_not(imagen_binaria, imagen_binaria);
 
-    // Aplicar una operación de cerrado (morfología) para rellenar los huecos
-    static const Mat elemento = getStructuringElement(MORPH_RECT, Size(5, 5)); // Tamaño del elemento estructurante
-    morphologyEx(mascaraRoja, mascaraRoja, MORPH_CLOSE, elemento);
-    morphologyEx(mascaraVerde, mascaraVerde, MORPH_CLOSE, elemento);
+    // Suavizado para borrar puntos
+    Mat imagen_suavizada2;
+    blur(imagen_binaria, imagen_suavizada2, Size(3, 3));
 
-    // Mostrar las imágenes procesadas
-    imshow("Zona Roja", mascaraRoja);
-    imshow("Zona Verde", mascaraVerde);
+    // Dilatación de la imagen
+    Mat kernel = getStructuringElement(MORPH_RECT, Size(8, 8));
+    Mat imagen_cerrada;
+    morphologyEx(imagen_suavizada2, imagen_cerrada, MORPH_CLOSE, kernel);
 
-    // Sumar las máscaras roja y verde (realizar una operación OR)
-    bitwise_or(mascaraRoja, mascaraVerde, mascaraCombinada);
+    // Relleno de huecos
+    Mat imagen_rellena;
+    morphologyEx(imagen_cerrada, imagen_rellena, MORPH_CLOSE, Mat());
 
-    // Mostrar la imagen combinada
-    imshow("Zona Combinada", mascaraCombinada);
+    // Operación de apertura para eliminar pequeños puntos
+    Mat kernel_apertura = getStructuringElement(MORPH_RECT, Size(10, 10));
+    Mat imagen_filtrada;
+    morphologyEx(imagen_rellena, imagen_filtrada, MORPH_CLOSE, kernel_apertura);
+
+    // Eliminar objetos pequeños
+    Mat etiquetas, stats, centroids;
+    int num_labels = connectedComponentsWithStats(imagen_filtrada, etiquetas, stats, centroids);
+
+    Mat imagen_final = Mat::zeros(imagen_filtrada.size(), CV_8UC1);
+    int umbral_area = 0.01 * imagen_filtrada.rows * imagen_filtrada.cols;
+
+    for (int i = 1; i < num_labels; ++i) {
+        if (stats.at<int>(i, CC_STAT_AREA) >= umbral_area) {
+            imagen_final.setTo(255, etiquetas == i);
+        }
+    }
+
+    // Mostrar la imagen final
+    imshow("Imagen final", imagen_final);
+    waitKey(0); // Mantener la ventana abierta hasta que se presione una tecla
 }
 
 void DeteccionCodigos::DecodificarCodigoDeBarras()
