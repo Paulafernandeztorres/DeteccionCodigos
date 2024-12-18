@@ -23,6 +23,7 @@ private slots:
     void ProcesarImagen();
 	void SaveImageButton();
 	void DecodificarCodigoDeBarras();
+	void SegmentarImagen();
 
 private:
     Ui::DeteccionCodigosClass ui;

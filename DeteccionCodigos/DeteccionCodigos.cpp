@@ -5,7 +5,8 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
 {
     ui.setupUi(this);
 
-    camera = new CVideoAcquisition("rtsp://admin:admin@192.168.1.101:8554/profile0");
+    camera = new CVideoAcquisition(0);
+    // camera = new CVideoAcquisition("rtsp://admin:admin@192.168.1.101:8554/profile0");
 
     qDebug() << "Conectando con la cámara...";
 
@@ -16,9 +17,10 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
     // Conectar la señal del botón a la función de detener captura
 	connect(ui.btnRecord, SIGNAL(clicked(bool)), this, SLOT(RecordButton(bool)));
     connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StropButton(bool)));
-    connect(ui.btnProcesarImagen, SIGNAL(clicked(bool)), this, SLOT(ProcesarImagen()));
+    connect(ui.btnSegmentar, SIGNAL(clicked()), this, SLOT(SegmentarImagen()));
+    connect(ui.btnProcesarImagen, SIGNAL(clicked()), this, SLOT(ProcesarImagen()));
     connect(ui.btnDecodificar, SIGNAL(clicked()), this, SLOT(DecodificarCodigoDeBarras()));
-	connect(ui.btnSaveImage, SIGNAL(clicked(bool)), this, SLOT(SaveImageButton()));
+	connect(ui.btnSaveImage, SIGNAL(clicked()), this, SLOT(SaveImageButton()));
 }
 
 // Destructor
@@ -175,7 +177,11 @@ void DeteccionCodigos::ProcesarImagen()
 
 void DeteccionCodigos::DecodificarCodigoDeBarras()
 {
-    qDebug() << "Error: La imagen final está vacía. Ejecuta ProcesarImagen primero.";
+    // Verificar si la imagen final está vacía
+    if (imagen_final.empty()) {
+        qDebug() << "Error: La imagen final está vacía. Ejecuta ProcesarImagen primero.";
+        return; // Salir del método si la imagen está vacía
+    }
 
     // Obtener las dimensiones de la imagen
     int alto_etiqueta = imagen_final.rows;
@@ -270,10 +276,10 @@ void DeteccionCodigos::DecodificarCodigoDeBarras()
         }
     }
 
-    // Crear una cadena con el resultado final concatenado
-    QString resultadoFinal = "El codigo numerico equivale a: ";
+    // Crear una cadena con el resultado final concatenado 
+    QString resultadoFinal; // Declarar fuera del bucle para acumular los resultados
     for (char c : resultados) {
-        resultadoFinal += QChar(c); // Convertir char a QChar para agregarlo al QString
+        resultadoFinal.append(QChar(c)); // Agregar cada carácter al QString
     }
 
     // Mostrar el resultado en la QLabel del .ui
@@ -281,6 +287,11 @@ void DeteccionCodigos::DecodificarCodigoDeBarras()
 }
 
 void DeteccionCodigos::SaveImageButton()
+{
+
+}
+
+void DeteccionCodigos::SegmentarImagen()
 {
 
 }
