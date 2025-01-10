@@ -42,8 +42,6 @@ void DeteccionCodigos::UpdateImage() {
         case Normal:
 			// Mostrar la imagen capturada (la imagen capturada es igual a la imagen final)
 			imagenFinal = imgcapturada;
-			// Espejo horizontal de la imagen
-			flip(imagenFinal, imagenFinal, 1);
             qimg = QImage((const unsigned char *)( imagenFinal.data ),
                           imagenFinal.cols,
                           imagenFinal.rows,
@@ -53,14 +51,13 @@ void DeteccionCodigos::UpdateImage() {
         case Decoded:
             // Llamar a la función de decodificación y procesar la imagen
             // Ejemplo pasar la imagen a escala de grises
-            imagenFinal = convertGrayImage(imgcapturada);
-			// Espejo horizontal de la imagen
-			flip(imagenFinal, imagenFinal, 1);
+			imagenFinal = getSegmentedImage(imgcapturada);
+			
             qimg = QImage((const unsigned char *)( imagenFinal.data ),
                           imagenFinal.cols,
                           imagenFinal.rows,
                           imagenFinal.step,
-                          QImage::Format_Grayscale8);
+                          QImage::Format_BGR888);
             break;
         case RedMask:
         {
@@ -73,8 +70,6 @@ void DeteccionCodigos::UpdateImage() {
 			imagenFinal = getRedMask(imagenFinal);
 			// Aplicar la mascara a la imagen original
 			imagenFinal = applyMaskToImage(imgcapturada, imagenFinal);
-			// Espejo horizontal de la imagen
-			flip(imagenFinal, imagenFinal, 1);
             qimg = QImage((const unsigned char *)( imagenFinal.data ),
                           imagenFinal.cols,
                           imagenFinal.rows,
@@ -93,8 +88,6 @@ void DeteccionCodigos::UpdateImage() {
 			imagenFinal = getGreenMask(imagenFinal);
 			// Aplicar la mascara a la imagen original
 			imagenFinal = applyMaskToImage(imgcapturada, imagenFinal);
-            // Espejo horizontal de la imagen
-            flip(imagenFinal, imagenFinal, 1);
             qimg = QImage((const unsigned char *)( imagenFinal.data ),
                           imagenFinal.cols,
                           imagenFinal.rows,
@@ -178,12 +171,14 @@ Mat DeteccionCodigos::BlurImage(const Mat& image, uint8_t kernerSsize) {
 
 Mat DeteccionCodigos::convertGrayImage(const Mat& image) {
 	// Convertir la imagen a escala de grises
+	Mat grayImage;
 	cvtColor(image, grayImage, COLOR_BGR2GRAY);
 	return grayImage;
 }
 
 Mat DeteccionCodigos::convertHSVImage(const Mat& image) {
 	// Convertir la imagen a espacio de color HSV
+	Mat hsvImage;
 	cvtColor(image, hsvImage, COLOR_BGR2HSV);
 	return hsvImage;
 }
@@ -191,8 +186,8 @@ Mat DeteccionCodigos::convertHSVImage(const Mat& image) {
 Mat DeteccionCodigos::getRedMask(const Mat& image) {
 	// Rango para el color rojo (dos segmentos)
 	Mat mascaraRoja, mascaraRoja2;
-	inRange(image, Scalar(0, 20, 0), Scalar(8, 255, 255), mascaraRoja);
-	inRange(image, Scalar(125, 20, 0), Scalar(179, 255, 255), mascaraRoja2);
+	inRange(image, Scalar(0, 50, 50), Scalar(10, 255, 255), mascaraRoja);
+	inRange(image, Scalar(150, 50, 50), Scalar(179, 255, 255), mascaraRoja2);
 	// Combinar las dos máscaras
 	mascaraRoja = mascaraRoja | mascaraRoja2;
 	return mascaraRoja;
@@ -201,7 +196,7 @@ Mat DeteccionCodigos::getRedMask(const Mat& image) {
 Mat DeteccionCodigos::getGreenMask(const Mat& image) {
 	// Rango para el color verde (ajustado para evitar falsos positivos)
 	Mat mascaraVerde;
-	inRange(image, Scalar(30, 40, 0), Scalar(90, 255, 190), mascaraVerde);
+	inRange(image, Scalar(30, 20, 20), Scalar(90, 255, 255), mascaraVerde);
 	return mascaraVerde;
 }
 
@@ -253,7 +248,7 @@ std::vector<std::vector<Point>> DeteccionCodigos::findFilteredContours(const Mat
         }
     }
     // Nunero de contornos encontrados
-	qDebug() << "Numero de contornos encontrados: " << filteredContours.size();
+	/*qDebug() << "Numero de contornos encontrados: " << filteredContours.size();*/
 
     /// Vector de vectores de puntos que representan los contornos.
     return filteredContours;
@@ -293,14 +288,14 @@ std::vector<ContourInfo> DeteccionCodigos::extractContourInfo(const std::vector<
 
         contour_info.push_back(info);
 		// Información del contorno
-		qDebug() << "Area: " << info.area 
+		/*qDebug() << "Area: " << info.area 
             << " Perimetro: " << info.perimeter 
 			<< " Centro: " << info.center.x << ", " << info.center.y
             << " Ancho: " << info.width 
             << " Alto: " << info.height
             << " Relacion de aspecto: " 
             << info.aspect_ratio 
-            << " Angulo: " << info.angle;
+            << " Angulo: " << info.angle;*/
     }
     return contour_info;
 }
@@ -378,6 +373,7 @@ std::vector<Mat> DeteccionCodigos::cutBoundingBox(const std::vector<pair<Contour
 
         // Calcular la bounding box que contenga todos los puntos
         Rect boundingBox = boundingRect(allPoints);
+
 		// Calcular el centro de la bounding box
 		Point boundingBoxCenter = Point(boundingBox.x + boundingBox.width / 2, boundingBox.y + boundingBox.height / 2);
 
@@ -419,51 +415,17 @@ std::vector<Mat> DeteccionCodigos::cutBoundingBox(const std::vector<pair<Contour
         // Calcular la nueva bounding box después de la transformación
         Rect transformedBoundingBox = boundingRect(transformedPoints);
 
-		// Recortar la bounding box de la imagen rotada
-		Mat extractedImage = rotatedImage(transformedBoundingBox);
-
-		// Añadir la imagen recortada al vector de imágenes
-		extractedImages.push_back(extractedImage);
+        if (transformedBoundingBox.x >= 0 && transformedBoundingBox.y >= 0 &&
+            transformedBoundingBox.x + transformedBoundingBox.width <= rotatedImage.cols &&
+            transformedBoundingBox.y + transformedBoundingBox.height <= rotatedImage.rows) {
+            Mat extractedImage = rotatedImage(transformedBoundingBox);
+            extractedImages.push_back(extractedImage);
+        }
+        else {
+            std::cout << "La bounding box transformada esta fuera de los limites." << std::endl;
+        }
     }
     return extractedImages;
-}
-
-// Función mostrar las imagenes de los códigos emparejados
-void DeteccionCodigos::extractCodes(const Mat &imagenRoja, const Mat &imagenVerde) {
-	// Encontrar contornos filtrados en las imágenes
-	std::vector<std::vector<Point>> redContours = findFilteredContours(imagenRoja);
-	std::vector<std::vector<Point>> greenContours = findFilteredContours(imagenVerde);
-    // Extraer información de los contornos encontrados
-	std::vector<ContourInfo> redContoursInfo = extractContourInfo(redContours);
-	std::vector<ContourInfo> greenContoursInfo = extractContourInfo(greenContours);
-	// Emparejar los contornos rojos y verdes
-	std::vector<std::pair<ContourInfo, ContourInfo>> matchedContours = matchContours(redContoursInfo, greenContoursInfo);
-	// Recortar las bounding boxes de los contornos emparejados
-	std::vector<Mat> extractedImages = cutBoundingBox(matchedContours, imgcapturada);
-
-	// Mostrar las imágenes recortadas ventanas separadas
-	for (size_t i = 0; i < extractedImages.size(); ++i) {
-        // Convertir imagen a escala de grises
-		extractedImages[i] = convertGrayImage(extractedImages[i]);
-		// Aplicar filtro gaussiano para reducir el ruido y mejorar la umbralización
-		extractedImages[i] = BlurImage(extractedImages[i], 11);
-		Mat thresholded = thresholdImage(extractedImages[i], 2);
-		// Obtener los contornos de la imagen
-		std::vector<std::vector<Point>> contours = getContours(thresholded, extractedImages[i]);
-		// Separar los contornos en segmentos
-		std::vector<std::vector<std::vector<Point>>> segments = separateContoursBySegments(contours, extractedImages[i].cols);
-		// Ordenar los contornos en cada segmento
-		std::vector<std::vector<std::vector<Point>>> orderedSegments = orderContours(segments);
-		// Obtener información de los segmentos
-		std::vector<SegmentInfo> segmentInfo = getSegmentInfo(orderedSegments, extractedImages[i]);
-		// Decodificar el número de cada segmento
-		std::string segmentNumber = decodeNumber(segmentInfo);
-		// Mostrar el número decodificado
-		qDebug() << "Codigo " << i + 1 << ": " << segmentNumber;
-
-		// Mostrar la imagen con los contornos
-		imshow("Codigo " + segmentNumber, extractedImages[i]);
-	} 
 }
 
 Mat DeteccionCodigos::thresholdImage(const Mat &image, int threshold) {
@@ -728,6 +690,81 @@ std::string DeteccionCodigos::decodeNumber(const std::vector<SegmentInfo> &segme
         }
     }
     return segmentNumber;
+}
+
+// Función mostrar las imagenes de los códigos emparejados
+Mat DeteccionCodigos::getSegmentedImage(const Mat &imagen) {
+	Mat copiaImagen = imagen.clone();
+	/// ETAPA SEGMENTACIÓN ///
+
+    Mat blurImage = BlurImage(imagen, 7);
+    // Convertir la imagen a hsv
+    Mat hsvImage = convertHSVImage(blurImage);
+	// Convertir la imagen a escala de grises
+	Mat grayImage = convertGrayImage(blurImage);
+	// Obtener la máscara verde y roja
+    Mat redMask = getRedMask(hsvImage);
+    Mat greenMask = getGreenMask(hsvImage);
+    // Aplicar la mascara a la imagen original
+    redMask = applyMaskToImage(grayImage, redMask);
+    greenMask = applyMaskToImage(grayImage, greenMask);
+    // Encontrar contornos filtrados en las imágenes
+    std::vector<std::vector<Point>> redContours = findFilteredContours(redMask);
+    std::vector<std::vector<Point>> greenContours = findFilteredContours(greenMask);
+    // Extraer información de los contornos encontrados
+    std::vector<ContourInfo> redContoursInfo = extractContourInfo(redContours);
+    std::vector<ContourInfo> greenContoursInfo = extractContourInfo(greenContours);
+    // Emparejar los contornos rojos y verdes
+    std::vector<std::pair<ContourInfo, ContourInfo>> matchedContours = matchContours(redContoursInfo, greenContoursInfo);
+    // Recortar las bounding boxes de los contornos emparejados
+    std::vector<Mat> extractedImages = cutBoundingBox(matchedContours, imagen);
+
+	/// ETAPA DECODIFICACIÓN ///
+
+	// Procesar las imágenes recortadas
+	// vector para almacenar los códigos decodificados
+	std::vector<std::string> decodedCodes;
+    for (size_t i = 0; i < extractedImages.size(); ++i) {
+        // Convertir imagen a escala de grises
+        extractedImages[i] = convertGrayImage(extractedImages[i]);
+        // Aplicar filtro gaussiano para reducir el ruido y mejorar la umbralización
+        extractedImages[i] = BlurImage(extractedImages[i], 11);
+        Mat thresholded = thresholdImage(extractedImages[i], 2);
+        // Obtener los contornos de la imagen
+        std::vector<std::vector<Point>> contours = getContours(thresholded, extractedImages[i]);
+        // Separar los contornos en segmentos
+        std::vector<std::vector<std::vector<Point>>> segments = separateContoursBySegments(contours, extractedImages[i].cols);
+        // Ordenar los contornos en cada segmento
+        std::vector<std::vector<std::vector<Point>>> orderedSegments = orderContours(segments);
+        // Obtener información de los segmentos
+        std::vector<SegmentInfo> segmentInfo = getSegmentInfo(orderedSegments, extractedImages[i]);
+        // Decodificar el número de cada segmento
+        std::string segmentNumber = decodeNumber(segmentInfo);
+		// Almacenar el número decodificado
+		decodedCodes.push_back(segmentNumber);
+    }
+	// Mostrar la imagen original con el bounding box de los contornos emparejados y el codigo decodificado
+	for (size_t i = 0; i < matchedContours.size(); ++i) {
+		const ContourInfo &redContour = matchedContours[i].first;
+		const ContourInfo &greenContour = matchedContours[i].second;
+
+        // Obtener los puntos de los contornos
+        std::vector<Point> redPoints = redContour.corners;
+        std::vector<Point> greenPoints = greenContour.corners;
+        // Combinar los puntos de ambos contornos
+        std::vector<Point> allPoints;
+        allPoints.insert(allPoints.end(), redPoints.begin(), redPoints.end());
+        allPoints.insert(allPoints.end(), greenPoints.begin(), greenPoints.end());
+
+        // Calcular la bounding box que contenga todos los puntos
+        Rect boundingBox = boundingRect(allPoints);
+		// Dibujar el bounding box en la imagen
+		rectangle(copiaImagen, boundingBox, Scalar(0, 255, 0), 2);
+		// Dibujar el código decodificado
+        std::string numero = i < decodedCodes.size() ? decodedCodes[i] : "X"; // Si no hay número, usar "X"
+        putText(copiaImagen, numero, Point(boundingBox.x, boundingBox.y - 10), FONT_HERSHEY_SIMPLEX, 1, Scalar(0, 255, 0), 2);
+	}
+	return copiaImagen;
 }
 
 

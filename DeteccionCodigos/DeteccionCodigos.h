@@ -65,12 +65,6 @@ private:
 	/// Modo de visualización 
 	ViewMode currentMode = Normal;
 
-	// Variables para guardar la imagen
-	Mat grayImage;
-	Mat hsvImage;
-	Mat imagenRoja;
-	Mat imagenVerde;
-
 	// contador de imagen capturada
 	int contadorImagen = 0;
 	std::vector<std::vector<Point>> contornos;
@@ -88,7 +82,7 @@ private:
 	std::vector<std::pair<ContourInfo, ContourInfo>> matchContours(const std::vector<ContourInfo> &redContoursInfo,
 																   const std::vector<ContourInfo> &greenContoursInfo);
 	std::vector<Mat> cutBoundingBox(const std::vector<pair<ContourInfo, ContourInfo>> &matchedContours, const Mat &image);
-	void extractCodes(const Mat &imagenRoja, const Mat &imagenVerde);
+	Mat getSegmentedImage(const Mat &imagen);
 
 	// Funciones de procesamiento de imagen
 	Mat thresholdImage(const Mat &image, int threshold = 2);
