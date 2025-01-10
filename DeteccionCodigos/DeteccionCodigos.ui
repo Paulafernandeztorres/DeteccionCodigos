@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>731</width>
-    <height>468</height>
+    <width>744</width>
+    <height>494</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,17 +15,17 @@
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="3" column="6">
-     <widget class="QPushButton" name="btnSaveImage">
+    <item row="3" column="4">
+     <widget class="QPushButton" name="btnRedMask">
       <property name="text">
-       <string>Save Image</string>
+       <string>Red Mask </string>
       </property>
      </widget>
     </item>
-    <item row="0" column="0" colspan="7">
+    <item row="0" column="0" colspan="8">
      <widget class="QLabel" name="label">
       <property name="text">
-       <string/>
+       <string>Press the Record button to start capturing images.</string>
       </property>
       <property name="alignment">
        <set>Qt::AlignCenter</set>
@@ -46,31 +46,24 @@
       </property>
      </widget>
     </item>
-    <item row="3" column="2">
-     <widget class="QPushButton" name="btnSegmentar">
+    <item row="3" column="5">
+     <widget class="QPushButton" name="btnGreenMask">
       <property name="text">
-       <string>Segmentar</string>
+       <string>Green Mask</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="7">
+     <widget class="QPushButton" name="btnSaveImage">
+      <property name="text">
+       <string>Save Image</string>
       </property>
      </widget>
     </item>
     <item row="3" column="3">
-     <widget class="QPushButton" name="btnProcesarImagen">
+     <widget class="QPushButton" name="btnDecodeImage">
       <property name="text">
-       <string>Procesar</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="4">
-     <widget class="QPushButton" name="btnDecodificar">
-      <property name="text">
-       <string>Decodificar</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="5">
-     <widget class="QLabel" name="labelcodigo">
-      <property name="text">
-       <string>TextLabel</string>
+       <string>Decode</string>
       </property>
      </widget>
     </item>

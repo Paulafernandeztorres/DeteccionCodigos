@@ -13,14 +13,17 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
     // Configurar el botón como checkable
     ui.btnStop->setCheckable(true);
     ui.btnRecord->setCheckable(true);
+	ui.btnDecodeImage->setCheckable(true);
+	ui.btnRedMask->setCheckable(true);
+	ui.btnGreenMask->setCheckable(true);
 
 	// Conectar los botones a sus respectivas funciones
 	connect(ui.btnRecord, SIGNAL(clicked(bool)), this, SLOT(RecordButton(bool)));
     connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StropButton(bool)));
-    connect(ui.btnSegmentar, SIGNAL(clicked()), this, SLOT(SegmentarImagen()));
-    connect(ui.btnProcesarImagen, SIGNAL(clicked()), this, SLOT(ProcesarImagen()));
-    connect(ui.btnDecodificar, SIGNAL(clicked()), this, SLOT(DecodificarCodigoDeBarras()));
-	connect(ui.btnSaveImage, SIGNAL(clicked()), this, SLOT(SaveImageButton()));
+    connect(ui.btnDecodeImage, SIGNAL(clicked(bool)), this, SLOT(DecodeImagen(bool)));
+    connect(ui.btnRedMask, SIGNAL(clicked(bool)), this, SLOT(ViewRedMask(bool)));
+    connect(ui.btnGreenMask, SIGNAL(clicked(bool)), this, SLOT(ViewGreenMask(bool)));
+	connect(ui.btnSaveImage, SIGNAL(clicked()), this, SLOT(SaveDecodedCode()));
 }
 
 // Destructor
@@ -30,81 +33,140 @@ DeteccionCodigos::~DeteccionCodigos()
 	delete camera;
 }
 
-// Función para mostrar la imagen en la interfaz
-void DeteccionCodigos::showImageInLabel() {
-    // Crear un temporizador para actualizar la imagen cada 10ms
-    timer = new QTimer(this);
-    connect(timer, SIGNAL(timeout()), this, SLOT(updateImage()));
-    timer->start(5);
-}
-
 // Función para actualizar la imagen
-void DeteccionCodigos::updateImage() {
-    // Capturar la imagen desde la cámara
+void DeteccionCodigos::UpdateImage() {
     imgcapturada = camera->getImage();
-
-	// Hacer un espejo de la imagen
-	/*flip(imgcapturada, imgcapturada, 1);*/
-
-    // Redimensionar la imagen para que se ajuste al tamaño de la etiqueta
-   /* qimg = qimg.scaled(ui.label->size(), Qt::KeepAspectRatio, Qt::FastTransformation);*/
-
-	// blur la imagen para reducir el ruido, kernel de 7x7
-	Mat blurImage = BlurImage(imgcapturada, 7);
-
-	// Convertir la imagen a escala de grises
-	grayImage = convertGrayImage(blurImage);
-
-	// Convertir la imagen a espacio de color HSV
-	hsvImage = convertHSVImage(blurImage);
-
-	// Obtener la máscara de color rojo
-	Mat mascaraRoja = getRedMask(hsvImage);
-	Mat mascaraVerde = getGreenMask(hsvImage);
-
-	// Aplicar la máscara a la imagen
-	imagenRoja = applyMaskToImage(grayImage, mascaraRoja);
-	imagenVerde = applyMaskToImage(grayImage, mascaraVerde);
-
-    // Convertir la imagen a formato QImage para mostrarla (en color, sin procesar)
-	QImage qimg = QImage((const unsigned char *)( imgcapturada.data ),
-                         imgcapturada.cols,
-                         imgcapturada.rows,
-                         imgcapturada.step,
-                         QImage::Format_BGR888);
-
-    // Hacer espejo de la imagen
-   /* qimg = qimg.mirrored(true, false);*/
-
-    // Mostrar la imagen en la interfaz
+    // Procesar la imagen según el modo actual
+    QImage qimg;
+    switch (currentMode) {
+        case Normal:
+			// Mostrar la imagen capturada (la imagen capturada es igual a la imagen final)
+			imagenFinal = imgcapturada;
+			// Espejo horizontal de la imagen
+			flip(imagenFinal, imagenFinal, 1);
+            qimg = QImage((const unsigned char *)( imagenFinal.data ),
+                          imagenFinal.cols,
+                          imagenFinal.rows,
+                          imagenFinal.step,
+                          QImage::Format_BGR888);
+            break;
+        case Decoded:
+            // Llamar a la función de decodificación y procesar la imagen
+            // Ejemplo pasar la imagen a escala de grises
+            imagenFinal = convertGrayImage(imgcapturada);
+			// Espejo horizontal de la imagen
+			flip(imagenFinal, imagenFinal, 1);
+            qimg = QImage((const unsigned char *)( imagenFinal.data ),
+                          imagenFinal.cols,
+                          imagenFinal.rows,
+                          imagenFinal.step,
+                          QImage::Format_Grayscale8);
+            break;
+        case RedMask:
+        {
+            // Generar y mostrar la máscara roja
+			// Filtrar la imagen para suavizarla y reducir el ruido
+			imagenFinal = BlurImage(imgcapturada, 7);
+			// Convertir la imagen a hsv
+			imagenFinal = convertHSVImage(imagenFinal);
+			// Obtener la máscara roja
+			imagenFinal = getRedMask(imagenFinal);
+			// Aplicar la mascara a la imagen original
+			imagenFinal = applyMaskToImage(imgcapturada, imagenFinal);
+			// Espejo horizontal de la imagen
+			flip(imagenFinal, imagenFinal, 1);
+            qimg = QImage((const unsigned char *)( imagenFinal.data ),
+                          imagenFinal.cols,
+                          imagenFinal.rows,
+                          imagenFinal.step,
+                          QImage::Format_BGR888);
+            break;
+        }
+        case GreenMask:
+        {
+            // Generar y mostrar la máscara verde
+			// Filtrar la imagen para suavizarla y reducir el ruido
+			imagenFinal = BlurImage(imgcapturada, 7);
+			// Convertir la imagen a hsv
+			imagenFinal = convertHSVImage(imagenFinal);
+			// Obtener la máscara verde
+			imagenFinal = getGreenMask(imagenFinal);
+			// Aplicar la mascara a la imagen original
+			imagenFinal = applyMaskToImage(imgcapturada, imagenFinal);
+            // Espejo horizontal de la imagen
+            flip(imagenFinal, imagenFinal, 1);
+            qimg = QImage((const unsigned char *)( imagenFinal.data ),
+                          imagenFinal.cols,
+                          imagenFinal.rows,
+                          imagenFinal.step,
+                          QImage::Format_BGR888);
+            break;
+        }
+    }
+    // Mostrar la imagen procesada en el label
     ui.label->setPixmap(QPixmap::fromImage(qimg));
 }
 
 void DeteccionCodigos::RecordButton(bool captura) {
-	qDebug() << "Boton Record pulsado: " << captura;
-	// Si el botón está pulsado está activo
-	if (captura) {
-		// si no hay temporizador, crear uno
+    qDebug() << "Boton Record pulsado: " << captura;
+    if (captura) {
         if (!timer) {
-			camera->startStopCapture(true);
-            showImageInLabel();
-        }  
-        else {
-			timer->start(10);
+            timer = new QTimer(this);
+            connect(timer, &QTimer::timeout, this, &DeteccionCodigos::UpdateImage);
+            timer->start(30); // Actualizar cada 30 ms
         }
-	}
-	else {
-		// eliminar el temporizador
-		timer->stop();
-		// borrar la imagen
-		ui.label->clear();
-	}
+        camera->startStopCapture(true);
+    }
+    else {
+        if (timer) {
+            timer->stop();
+            delete timer;
+            timer = nullptr;
+        }
+        camera->startStopCapture(false);
+        ui.label->clear();
+    }
 }
 
 void DeteccionCodigos::StropButton(bool captura) {
 	qDebug() << "Boton Stop pulsado: " << captura;
 	// Si el botón está pulsado está activo
     camera->startStopCapture(!captura);
+}
+
+void DeteccionCodigos::DecodeImagen(bool captura) {
+    if (captura) {
+        qDebug() << "Decodificando imagen...";
+        currentMode = Decoded;
+    }
+    else {
+        currentMode = Normal;
+    }
+}
+
+void DeteccionCodigos::ViewRedMask(bool captura) {
+    if (captura) {
+        qDebug() << "Mostrando mascara roja...";
+        currentMode = RedMask;
+    }
+    else {
+        currentMode = Normal;
+    }
+}
+
+void DeteccionCodigos::ViewGreenMask(bool captura) {
+    if (captura) {
+        qDebug() << "Mostrando mascara verde...";
+        currentMode = GreenMask;
+    }
+    else {
+        currentMode = Normal;
+    }
+}
+
+void DeteccionCodigos::SaveDecodedCode()
+{
+    qDebug() << "Guardando codigo decodificado...";
 }
 
 Mat DeteccionCodigos::BlurImage(const Mat& image, uint8_t kernerSsize) {
@@ -669,22 +731,3 @@ std::string DeteccionCodigos::decodeNumber(const std::vector<SegmentInfo> &segme
 }
 
 
-void DeteccionCodigos::ProcesarImagen()
-{
-    // Implemetar funcion
-}
-
-void DeteccionCodigos::DecodificarCodigoDeBarras()
-{
-    // Implementar funcion
-}
-
-void DeteccionCodigos::SaveImageButton()
-{
-    // Implementar funcion
-}
-
-void DeteccionCodigos::SegmentarImagen()
-{
-	extractCodes(imagenRoja, imagenVerde);
-}

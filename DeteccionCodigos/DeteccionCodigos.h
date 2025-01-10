@@ -10,6 +10,13 @@
 #include <cmath>
 #include <algorithm>
 
+enum ViewMode {
+	Normal,
+	Decoded,
+	RedMask,
+	GreenMask
+};
+
 // Estructura para almacenar la información de un contorno.
 struct ContourInfo {
 	std::vector<Point> corners; // Esquinas del contorno
@@ -39,13 +46,13 @@ public:
     ~DeteccionCodigos();
 
 private slots:
-    void updateImage();
+    void UpdateImage();
 	void StropButton(bool);
 	void RecordButton(bool);
-    void ProcesarImagen();
-	void SaveImageButton();
-	void DecodificarCodigoDeBarras();
-	void SegmentarImagen();
+    void DecodeImagen(bool);
+	void ViewRedMask(bool);
+	void ViewGreenMask(bool);
+	void SaveDecodedCode();
 
 private:
     Ui::DeteccionCodigosClass ui;
@@ -53,7 +60,10 @@ private:
 	// timer para actualizar la imagen
 	QTimer *timer;
     Mat imgcapturada;
-	Mat imagen_final;
+	Mat imagenFinal;
+
+	/// Modo de visualización 
+	ViewMode currentMode = Normal;
 
 	// Variables para guardar la imagen
 	Mat grayImage;
@@ -64,9 +74,6 @@ private:
 	// contador de imagen capturada
 	int contadorImagen = 0;
 	std::vector<std::vector<Point>> contornos;
-
-
-	void showImageInLabel();
 	
 	// Funciones de segmentacion de imagen
 	Mat BlurImage(const Mat& image, uint8_t kernelSize);
