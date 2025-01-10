@@ -1,7 +1,6 @@
 #include "DeteccionCodigos.h"
 #include <QtWidgets/QApplication>
 
-//Hola
 
 int main(int argc, char *argv[])
 {

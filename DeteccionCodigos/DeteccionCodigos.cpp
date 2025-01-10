@@ -14,7 +14,7 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
     ui.btnStop->setCheckable(true);
     ui.btnRecord->setCheckable(true);
 
-    // Conectar la señal del botón a la función de detener captura
+	// Conectar los botones a sus respectivas funciones
 	connect(ui.btnRecord, SIGNAL(clicked(bool)), this, SLOT(RecordButton(bool)));
     connect(ui.btnStop, SIGNAL(clicked(bool)), this, SLOT(StropButton(bool)));
     connect(ui.btnSegmentar, SIGNAL(clicked()), this, SLOT(SegmentarImagen()));
@@ -25,7 +25,10 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
 
 // Destructor
 DeteccionCodigos::~DeteccionCodigos()
-{}
+{
+	// Eliminar la cámara
+	delete camera;
+}
 
 // Función para mostrar la imagen en la interfaz
 void DeteccionCodigos::showImageInLabel() {
@@ -40,15 +43,38 @@ void DeteccionCodigos::updateImage() {
     // Capturar la imagen desde la cámara
     imgcapturada = camera->getImage();
 
-    // Convertir la imagen a formato QImage para mostrarla (en color, sin procesar)
-    QImage qimg(imgcapturada.data,
-        imgcapturada.cols,
-        imgcapturada.rows,
-        imgcapturada.step,
-        QImage::Format_BGR888);
+	// Hacer un espejo de la imagen
+	/*flip(imgcapturada, imgcapturada, 1);*/
 
     // Redimensionar la imagen para que se ajuste al tamaño de la etiqueta
-    qimg = qimg.scaled(ui.label->size(), Qt::KeepAspectRatio, Qt::FastTransformation);
+   /* qimg = qimg.scaled(ui.label->size(), Qt::KeepAspectRatio, Qt::FastTransformation);*/
+
+	// blur la imagen para reducir el ruido, kernel de 7x7
+	Mat blurImage = BlurImage(imgcapturada, 7);
+
+	// Convertir la imagen a escala de grises
+	grayImage = convertGrayImage(blurImage);
+
+	// Convertir la imagen a espacio de color HSV
+	hsvImage = convertHSVImage(blurImage);
+
+	// Obtener la máscara de color rojo
+	Mat mascaraRoja = getRedMask(hsvImage);
+	Mat mascaraVerde = getGreenMask(hsvImage);
+
+	// Aplicar la máscara a la imagen
+	imagenRoja = applyMaskToImage(grayImage, mascaraRoja);
+	imagenVerde = applyMaskToImage(grayImage, mascaraVerde);
+
+    // Convertir la imagen a formato QImage para mostrarla (en color, sin procesar)
+	QImage qimg = QImage((const unsigned char *)( imgcapturada.data ),
+                         imgcapturada.cols,
+                         imgcapturada.rows,
+                         imgcapturada.step,
+                         QImage::Format_BGR888);
+
+    // Hacer espejo de la imagen
+   /* qimg = qimg.mirrored(true, false);*/
 
     // Mostrar la imagen en la interfaz
     ui.label->setPixmap(QPixmap::fromImage(qimg));
@@ -64,7 +90,7 @@ void DeteccionCodigos::RecordButton(bool captura) {
             showImageInLabel();
         }  
         else {
-			timer->start(5);
+			timer->start(10);
         }
 	}
 	else {
@@ -81,217 +107,584 @@ void DeteccionCodigos::StropButton(bool captura) {
     camera->startStopCapture(!captura);
 }
 
-void DeteccionCodigos::ProcesarImagen()
-{
-    // Cargar la imagen desde un archivo en tu ordenador
-    imgcapturada = imread("C:/Users/paufe/OneDrive/Escritorio/UNIVERSIDAD/MASTER/1º/Procesado de señales multimedia/Proyecto/images/3231 (7).jpg", IMREAD_COLOR); // Cargar en color (BGR)
-
-    // Verificar que la imagen se haya cargado correctamente
-    if (imgcapturada.empty()) {
-        qDebug() << "Error: No se pudo cargar la imagen.";
-        return;
-    }
-
-    // Convertir la imagen a escala de grises
-    Mat imagen_gris;
-    cvtColor(imgcapturada, imagen_gris, COLOR_BGR2GRAY);
-
-    // Filtrado del ruido en la imagen (suavizado)
-    Mat imagen_suavizada;
-    blur(imagen_gris, imagen_suavizada, Size(7, 7));
-
-    // Umbralización de la imagen con Otsu
-    Mat imagen_binaria;
-    double umbral = threshold(imagen_suavizada, imagen_binaria, 0, 255, THRESH_BINARY + THRESH_OTSU);
-
-    // Convertir la imagen a espacio de color HSV para detección de colores
-    Mat imagenHSV;
-    cvtColor(imgcapturada, imagenHSV, COLOR_BGR2HSV);
-
-    // Detectar bordes rojo y verde con rangos afinados
-    Mat mascaraRoja, mascaraRoja2, mascaraVerde;
-
-    // Rango para el color rojo (dos segmentos)
-    inRange(imagenHSV, Scalar(0, 100, 100), Scalar(10, 255, 255), mascaraRoja);
-    inRange(imagenHSV, Scalar(160, 100, 100), Scalar(180, 255, 255), mascaraRoja2);
-    mascaraRoja = mascaraRoja | mascaraRoja2;
-
-    // Rango para el color verde (ajustado para evitar falsos positivos)
-    inRange(imagenHSV, Scalar(40, 50, 50), Scalar(85, 255, 255), mascaraVerde);
-
-    // Crear una máscara final combinando las máscaras de rojo y verde
-    Mat mascaraFinal = mascaraRoja | mascaraVerde;
-
-    // Convertir los colores detectados (rojo y verde) a blanco
-    imgcapturada.setTo(Scalar(255, 255, 255), mascaraFinal); // Establecer a blanco donde la máscara es verdadera
-
-    // Invertir la imagen (blanco se convierte en negro y viceversa)
-    bitwise_not(imgcapturada, imgcapturada); // Invertir los colores de la imagen
-
-    // Convertir la imagen modificada a escala de grises para el siguiente procesamiento
-    cvtColor(imgcapturada, imagen_gris, COLOR_BGR2GRAY);
-
-    // Filtrado del ruido en la imagen (suavizado)
-    blur(imagen_gris, imagen_suavizada, Size(7, 7));
-
-    // Umbralización de la imagen con Otsu
-    threshold(imagen_suavizada, imagen_binaria, 0, 255, THRESH_BINARY + THRESH_OTSU);
-
-    // Suavizado para borrar puntos
-    Mat imagen_suavizada2;
-    blur(imagen_binaria, imagen_suavizada2, Size(3, 3));
-
-    // Dilatación de la imagen
-    Mat kernel = getStructuringElement(MORPH_RECT, Size(8, 8));
-    Mat imagen_cerrada;
-    morphologyEx(imagen_suavizada2, imagen_cerrada, MORPH_CLOSE, kernel);
-
-    // Relleno de huecos
-    Mat imagen_rellena;
-    morphologyEx(imagen_cerrada, imagen_rellena, MORPH_CLOSE, Mat());
-
-    // Operación de apertura para eliminar pequeños puntos
-    Mat kernel_apertura = getStructuringElement(MORPH_RECT, Size(10, 10));
-    Mat imagen_filtrada;
-    morphologyEx(imagen_rellena, imagen_filtrada, MORPH_CLOSE, kernel_apertura);
-
-    // Eliminar objetos pequeños
-    Mat etiquetas, stats, centroids;
-    int num_labels = connectedComponentsWithStats(imagen_filtrada, etiquetas, stats, centroids);
-
-    imagen_final = Mat::zeros(imagen_filtrada.size(), CV_8UC1);
-    int umbral_area = 0.01 * imagen_filtrada.rows * imagen_filtrada.cols;
-
-    for (int i = 1; i < num_labels; ++i) {
-        if (stats.at<int>(i, CC_STAT_AREA) >= umbral_area) {
-            imagen_final.setTo(255, etiquetas == i);
-        }
-    }
-
-    // Mostrar la imagen final
-    imshow("Imagen final", imagen_final);
-    waitKey(0); // Mantener la ventana abierta hasta que se presione una tecla
+Mat DeteccionCodigos::BlurImage(const Mat& image, uint8_t kernerSsize) {
+	// Aplicar el filtro de desenfoque gaussiano
+    Mat blurImage;
+	GaussianBlur(image, blurImage, Size(kernerSsize, kernerSsize), 0);
+	return blurImage;
 }
 
+Mat DeteccionCodigos::convertGrayImage(const Mat& image) {
+	// Convertir la imagen a escala de grises
+	cvtColor(image, grayImage, COLOR_BGR2GRAY);
+	return grayImage;
+}
 
+Mat DeteccionCodigos::convertHSVImage(const Mat& image) {
+	// Convertir la imagen a espacio de color HSV
+	cvtColor(image, hsvImage, COLOR_BGR2HSV);
+	return hsvImage;
+}
 
-void DeteccionCodigos::DecodificarCodigoDeBarras()
-{
-    // Verificar si la imagen final está vacía
-    if (imagen_final.empty()) {
-        qDebug() << "Error: La imagen final está vacía. Ejecuta ProcesarImagen primero.";
-        return; // Salir del método si la imagen está vacía
+Mat DeteccionCodigos::getRedMask(const Mat& image) {
+	// Rango para el color rojo (dos segmentos)
+	Mat mascaraRoja, mascaraRoja2;
+	inRange(image, Scalar(0, 20, 0), Scalar(8, 255, 255), mascaraRoja);
+	inRange(image, Scalar(125, 20, 0), Scalar(179, 255, 255), mascaraRoja2);
+	// Combinar las dos máscaras
+	mascaraRoja = mascaraRoja | mascaraRoja2;
+	return mascaraRoja;
+}
+
+Mat DeteccionCodigos::getGreenMask(const Mat& image) {
+	// Rango para el color verde (ajustado para evitar falsos positivos)
+	Mat mascaraVerde;
+	inRange(image, Scalar(30, 40, 0), Scalar(90, 255, 190), mascaraVerde);
+	return mascaraVerde;
+}
+
+Mat DeteccionCodigos::applyMaskToImage(const Mat& image, Mat mask) {
+	// Aplicar la máscara a la imagen
+	Mat maskedImage;
+	image.copyTo(maskedImage, mask);
+	return maskedImage;
+}
+
+Mat DeteccionCodigos::sobelFilter(const Mat& image, uint8_t kernelSize) {
+    Mat img_sobel_x, img_sobel_y, img_sobel, filtered_image;
+    // Aplicar el filtro Sobel en la dirección X
+    Sobel(image, img_sobel_x, CV_64F, 1, 0, kernelSize);
+    // Aplicar el filtro Sobel en la dirección Y
+    Sobel(image, img_sobel_y, CV_64F, 0, 1, kernelSize);
+    // Calcular la magnitud del gradiente
+    magnitude(img_sobel_x, img_sobel_y, img_sobel);
+    // Normalizar la imagen resultante
+    normalize(img_sobel, img_sobel, 0, 255, NORM_MINMAX, CV_8U);
+    // Aplicar umbralización binaria
+    threshold(img_sobel, filtered_image, 30, 255, THRESH_BINARY);
+    return filtered_image;
+}
+
+std::vector<std::vector<Point>> DeteccionCodigos::findFilteredContours(const Mat &image) {
+    // Filtro sobel para detectar bordes
+    Mat sobelImage = sobelFilter(image, 11);
+    // Encontrar contornos en la imagen
+    std::vector<std::vector<Point>> contours;
+    std::vector<Vec4i> hierarchy;
+    findContours(sobelImage, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+    // Filtrar los contornos por Area
+    std::vector<std::vector<Point>> filteredContours;
+    for (const auto &contour : contours) {
+        // Calcular el área del contorno
+        double area = contourArea(contour);
+        // Calcular el aspect ratio del contorno
+        Rect boundingBox = boundingRect(contour);
+
+        // calcular 1% del área de image
+		double areaImage = image.rows * image.cols;
+		double umbralBajoArea = 0.05 * areaImage;
+		double umbralAltoArea = 0.25 * areaImage;
+
+        double aspectRatio = static_cast<double>( boundingBox.width ) / boundingBox.height;
+        if (area > umbralBajoArea && area < umbralAltoArea && aspectRatio > 0.5 && aspectRatio < 1.3) {
+            filteredContours.push_back(contour);
+        }
     }
+    // Nunero de contornos encontrados
+	qDebug() << "Numero de contornos encontrados: " << filteredContours.size();
 
-    // Obtener las dimensiones de la imagen
-    int alto_etiqueta = imagen_final.rows;
-    int ancho_etiqueta = imagen_final.cols;
+    /// Vector de vectores de puntos que representan los contornos.
+    return filteredContours;
+}
 
-    // Calcular la anchura de cada segmento
-    int anchura_segmento = ancho_etiqueta / 4;
+/// Extrae información de los contornos proporcionados.
+std::vector<ContourInfo> DeteccionCodigos::extractContourInfo(const std::vector<std::vector<Point>> &contours) {
+    // Vector de estructuras ContourInfo con la información de cada contorno.
+    std::vector<ContourInfo> contour_info;
+    for (const auto &contour : contours) {
+        ContourInfo info;
+        // Calcular el área del contorno
+        info.area = contourArea(contour);
+        // Obtener el rectángulo delimitador del contorno
+        Rect boundingBox = boundingRect(contour);
 
-    // Dividir la imagen en 4 partes horizontales
-    std::vector<Mat> segmentos;
-    segmentos.push_back(imagen_final(Rect(0, 0, anchura_segmento, alto_etiqueta)));                       // Segmento 1
-    segmentos.push_back(imagen_final(Rect(anchura_segmento, 0, anchura_segmento, alto_etiqueta)));        // Segmento 2
-    segmentos.push_back(imagen_final(Rect(2 * anchura_segmento, 0, anchura_segmento, alto_etiqueta)));    // Segmento 3
-    segmentos.push_back(imagen_final(Rect(3 * anchura_segmento, 0, ancho_etiqueta - 3 * anchura_segmento, alto_etiqueta))); // Segmento 4
+        // Calcular el perímetro del contorno
+        info.perimeter =arcLength(contour, true);
 
-    // Arreglo para almacenar resultados
-    std::vector<char> resultados;
+        // Obtener las esquinas reales del contorno
+        RotatedRect rect = minAreaRect(contour);
+        Point2f box[4];
+        rect.points(box);
+        for (int i = 0; i < 4; i++) {
+            info.corners.push_back(Point(static_cast<int>( box[i].x ), static_cast<int>( box[i].y )));
+        }
+        // Calcular el centro del contorno
+        info.center = Point2f((boundingBox.x + boundingBox.width) / 2.0,
+                              (boundingBox.y + boundingBox.height) / 2.0 );
+        // Calcular el ancho y alto del contorno y redondear a 3 decimales
+        info.width = boundingBox.width;
+        info.height = boundingBox.height;
+        // Calcular la relación de aspecto del contorno y redondear a 3 decimales
+        info.aspect_ratio = ( boundingBox.height != 0 ) ?  boundingBox.width / static_cast<float>( boundingBox.height ) : 0;
+        // Calcular el ángulo del contorno y redondear a 3 decimales
+        info.angle = rect.angle;
 
-    // Iterar sobre cada segmento
-    for (size_t s = 0; s < segmentos.size(); ++s)
-    {
-        Mat segmento_actual = segmentos[s];
-        Mat etiquetas, stats, centroids;
+        contour_info.push_back(info);
+		// Información del contorno
+		qDebug() << "Area: " << info.area 
+            << " Perimetro: " << info.perimeter 
+			<< " Centro: " << info.center.x << ", " << info.center.y
+            << " Ancho: " << info.width 
+            << " Alto: " << info.height
+            << " Relacion de aspecto: " 
+            << info.aspect_ratio 
+            << " Angulo: " << info.angle;
+    }
+    return contour_info;
+}
 
-        // Etiquetar los objetos en el segmento actual
-        int num_objetos = connectedComponentsWithStats(segmento_actual, etiquetas, stats, centroids, 8, CV_32S);
+std::vector<std::pair<ContourInfo, ContourInfo>> DeteccionCodigos::matchContours(const std::vector<ContourInfo> &redContoursInfo, 
+                                                                                 const std::vector<ContourInfo> &greenContoursInfo) {
+    std::vector<std::pair<ContourInfo, ContourInfo>> matches;
+    std::set<const ContourInfo *> usedRedContours;
+    std::set<const ContourInfo *> usedGreenContours;
 
-        // Inicializar código del segmento
-        char codigo_segmento = 'X';
-
-        // Si no hay contornos, asignar '0' al resultado
-        if (num_objetos <= 1) { // Primer objeto siempre es el fondo
-            resultados.push_back('0');
+    for (const auto &redContour : redContoursInfo) {
+        // Verificar si este contorno rojo ya está emparejado
+        if (usedRedContours.find(&redContour) != usedRedContours.end()) {
             continue;
         }
 
-        // Calcular propiedades de cada objeto
-        std::vector<double> anchuras, alturas, areas;
-        for (int i = 1; i < num_objetos; ++i)
-        {
-            anchuras.push_back(stats.at<int>(i, CC_STAT_WIDTH));
-            alturas.push_back(stats.at<int>(i, CC_STAT_HEIGHT));
-            areas.push_back(stats.at<int>(i, CC_STAT_AREA));
-        }
+        const ContourInfo *bestMatch = nullptr;
+        double bestAngleMatch = std::numeric_limits<double>::infinity();  // Para encontrar el mejor ángulo
+        double bestScore = std::numeric_limits<double>::infinity();       // Para desempatar usando área y perímetro
 
-        // Determinar orientación
-        bool esHorizontal = (std::count_if(anchuras.begin(), anchuras.end(),
-            [&](double w) { return w > alturas[0]; }) > num_objetos / 2);
-
-        double area_segmento = segmento_actual.rows * segmento_actual.cols;
-
-        // Clasificar según número de objetos
-        if (num_objetos == 2) // Solo un contorno
-        {
-            double area_contorno = areas[0] / area_segmento;
-            if (esHorizontal)
-                codigo_segmento = '8';
-            else
-                codigo_segmento = (area_contorno < 0.15) ? '1' : '5';
-        }
-        else if (num_objetos >= 3) // Dos o más contornos
-        {
-            double area_contorno1 = areas[0] / area_segmento;
-            double area_contorno2 = areas[1] / area_segmento;
-
-            if (esHorizontal)
-            {
-                if (area_contorno1 < 0.15 && area_contorno2 < 0.15) codigo_segmento = '3';
-                else if (area_contorno1 > 0.15 && area_contorno2 < 0.15) codigo_segmento = '7';
-                else if (area_contorno1 < 0.15 && area_contorno2 > 0.15) codigo_segmento = '9';
+        for (const auto &greenContour : greenContoursInfo) {
+            // Verificar si este contorno verde ya está emparejado
+            if (usedGreenContours.find(&greenContour) != usedGreenContours.end()) {
+                continue;
             }
-            else
-            {
-                if (area_contorno1 < 0.15 && area_contorno2 < 0.15) codigo_segmento = '2';
-                else if (area_contorno1 < 0.15 && area_contorno2 > 0.15) codigo_segmento = '4';
-                else if (area_contorno1 > 0.15 && area_contorno2 < 0.15) codigo_segmento = '6';
+            // Calcular distancia entre centros
+            double centerDistance = cv::norm(redContour.center - greenContour.center);
+            // Descartar si la distancia excede 3.5 veces la anchura del contorno rojo
+            if (centerDistance > 3.2 * redContour.width) {
+                continue;
+            }
+            // Calcular diferencia de ángulo
+            double angleDiff = std::abs(redContour.angle - greenContour.angle);
+            // Descartar si la diferencia de ángulo es mayor a 10 grados
+            // if (angleDiff > 20) {
+            //     continue;
+            // }
+            // Calcular diferencias adicionales para desempatar
+            double areaDiff = std::abs(redContour.area - greenContour.area);
+            double perimeterDiff = std::abs(redContour.perimeter - greenContour.perimeter);
+            // Crear puntaje de desempate
+            double score = areaDiff + perimeterDiff;
+            // Actualizar el mejor match
+            if (angleDiff < bestAngleMatch || ( angleDiff == bestAngleMatch && score < bestScore )) {
+                bestAngleMatch = angleDiff;
+                bestScore = score;
+                bestMatch = &greenContour;
             }
         }
+        if (bestMatch) {
+            matches.emplace_back(redContour, *bestMatch);
+            usedRedContours.insert(&redContour);
+            usedGreenContours.insert(bestMatch);
+        }
+    }
+	// Información de los contornos emparejados
+	qDebug() << "Numero de contornos emparejados: " << matches.size();
+    return matches;
+}
 
-        // Guardar el resultado del segmento
-        resultados.push_back(codigo_segmento);
+std::vector<Mat> DeteccionCodigos::cutBoundingBox(const std::vector<pair<ContourInfo, ContourInfo>> &matchedContours, const Mat &image) {
+    std::vector<Mat> extractedImages;
 
-        // Dibujar contornos sobre el segmento
-        Mat contornos = Mat::zeros(segmento_actual.size(), CV_8UC3);
-        for (int i = 1; i < num_objetos; ++i)
-        {
-            Mat obj;
-            inRange(etiquetas, i, i, obj);
-            std::vector<std::vector<Point>> boundary;
-            findContours(obj, boundary, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            drawContours(contornos, boundary, -1, Scalar(0, 0, 255), 2);
+    for (const auto &match : matchedContours) {
+        const ContourInfo &redContour = match.first;
+        const ContourInfo &greenContour = match.second;
+
+        // Obtener los puntos de los contornos
+        std::vector<Point> redPoints = redContour.corners;
+        std::vector<Point> greenPoints = greenContour.corners;
+        // Combinar los puntos de ambos contornos
+        std::vector<Point> allPoints;
+        allPoints.insert(allPoints.end(), redPoints.begin(), redPoints.end());
+        allPoints.insert(allPoints.end(), greenPoints.begin(), greenPoints.end());
+
+        // Calcular la bounding box que contenga todos los puntos
+        Rect boundingBox = boundingRect(allPoints);
+		// Calcular el centro de la bounding box
+		Point boundingBoxCenter = Point(boundingBox.x + boundingBox.width / 2, boundingBox.y + boundingBox.height / 2);
+
+        // extraer los centros de los contornos
+		Point redCenter = redContour.center;
+		Point greenCenter = greenContour.center;
+
+		//// Dibujar los centros y la línea entre ellos en la imagen
+		//circle(image, redCenter, 5, Scalar(0, 0, 255), -1);
+		//circle(image, greenCenter, 5, Scalar(0, 255, 0), -1);
+
+		//// Dibujar la línea entre los centros
+		//line(image, redCenter, greenCenter, Scalar(255, 0, 0), 2);
+
+		//// Mostrar la imagen con los centros y la línea
+		//imshow("Centros y línea", image);
+
+        // Calcular el ángulo entre los centros
+        double x0 = redContour.center.x;
+        double y0 = redContour.center.y;
+        double x1 = greenContour.center.x;
+        double y1 = greenContour.center.y;
+        double angle = atan2(y1 - y0, x1 - x0) * 180 / CV_PI;
+
+        // Rotar la imagen original para que la línea entre los centros sea horizontal
+        Mat M = getRotationMatrix2D(boundingBoxCenter, angle, 1);
+        Mat rotatedImage;
+        warpAffine(image, rotatedImage, M, image.size());
+
+        // Rotar los puntos de los contornos
+        std::vector<Point> transformedPoints;
+        for (const Point &pt : allPoints) {
+            // Transformar cada punto con la matriz de rotación
+            double xNew = M.at<double>(0, 0) * pt.x + M.at<double>(0, 1) * pt.y + M.at<double>(0, 2);
+            double yNew = M.at<double>(1, 0) * pt.x + M.at<double>(1, 1) * pt.y + M.at<double>(1, 2);
+            transformedPoints.emplace_back(cvRound(xNew), cvRound(yNew));
+        }
+
+        // Calcular la nueva bounding box después de la transformación
+        Rect transformedBoundingBox = boundingRect(transformedPoints);
+
+		// Recortar la bounding box de la imagen rotada
+		Mat extractedImage = rotatedImage(transformedBoundingBox);
+
+		// Añadir la imagen recortada al vector de imágenes
+		extractedImages.push_back(extractedImage);
+    }
+    return extractedImages;
+}
+
+// Función mostrar las imagenes de los códigos emparejados
+void DeteccionCodigos::extractCodes(const Mat &imagenRoja, const Mat &imagenVerde) {
+	// Encontrar contornos filtrados en las imágenes
+	std::vector<std::vector<Point>> redContours = findFilteredContours(imagenRoja);
+	std::vector<std::vector<Point>> greenContours = findFilteredContours(imagenVerde);
+    // Extraer información de los contornos encontrados
+	std::vector<ContourInfo> redContoursInfo = extractContourInfo(redContours);
+	std::vector<ContourInfo> greenContoursInfo = extractContourInfo(greenContours);
+	// Emparejar los contornos rojos y verdes
+	std::vector<std::pair<ContourInfo, ContourInfo>> matchedContours = matchContours(redContoursInfo, greenContoursInfo);
+	// Recortar las bounding boxes de los contornos emparejados
+	std::vector<Mat> extractedImages = cutBoundingBox(matchedContours, imgcapturada);
+
+	// Mostrar las imágenes recortadas ventanas separadas
+	for (size_t i = 0; i < extractedImages.size(); ++i) {
+        // Convertir imagen a escala de grises
+		extractedImages[i] = convertGrayImage(extractedImages[i]);
+		// Aplicar filtro gaussiano para reducir el ruido y mejorar la umbralización
+		extractedImages[i] = BlurImage(extractedImages[i], 11);
+		Mat thresholded = thresholdImage(extractedImages[i], 2);
+		// Obtener los contornos de la imagen
+		std::vector<std::vector<Point>> contours = getContours(thresholded, extractedImages[i]);
+		// Separar los contornos en segmentos
+		std::vector<std::vector<std::vector<Point>>> segments = separateContoursBySegments(contours, extractedImages[i].cols);
+		// Ordenar los contornos en cada segmento
+		std::vector<std::vector<std::vector<Point>>> orderedSegments = orderContours(segments);
+		// Obtener información de los segmentos
+		std::vector<SegmentInfo> segmentInfo = getSegmentInfo(orderedSegments, extractedImages[i]);
+		// Decodificar el número de cada segmento
+		std::string segmentNumber = decodeNumber(segmentInfo);
+		// Mostrar el número decodificado
+		qDebug() << "Codigo " << i + 1 << ": " << segmentNumber;
+
+		// Mostrar la imagen con los contornos
+		imshow("Codigo " + segmentNumber, extractedImages[i]);
+	} 
+}
+
+Mat DeteccionCodigos::thresholdImage(const Mat &image, int threshold) {
+    Mat imageThresholdGaussian;
+    adaptiveThreshold(image, imageThresholdGaussian, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, threshold);
+	// Hacer los bordes más suaves con cierra y erosión
+    Mat kernel = Mat::ones(Size(3, 3), CV_8U);
+    Mat closeImage;
+    morphologyEx(imageThresholdGaussian, closeImage, MORPH_CLOSE, kernel);
+    Mat erodeImage;
+    erode(closeImage, erodeImage, kernel, Point(-1, -1), 1);
+    return erodeImage;
+}
+
+pair<std::vector<std::vector<Point>>, std::vector<std::vector<Point>>> DeteccionCodigos::classifyContours(
+    const std::vector<std::vector<Point>> &contours, const Size &imageShape) {
+    std::vector<std::vector<Point>> squareContours;
+    std::vector<std::vector<Point>> rectangularContours;
+
+    for (const auto &contour : contours) {
+        double area = contourArea(contour);
+        double areaRatio = area / ( imageShape.width * imageShape.height );
+
+        Rect boundingBox = boundingRect(contour);
+        double aspectRatio = static_cast<double>( boundingBox.width ) / boundingBox.height;
+
+        // Clasificar contornos en cuadrados o rectángulos
+        if (0.5 <= aspectRatio && aspectRatio <= 1.5 && areaRatio > 0.06) {
+            squareContours.push_back(contour);
+        }
+        else {
+            rectangularContours.push_back(contour);
+        }
+    }
+    return { squareContours, rectangularContours };
+}
+
+
+std::vector<std::vector<Point>> DeteccionCodigos::filterInsideContours(const std::vector<std::vector<Point>> &contours) {
+    std::vector<std::vector<Point>> filteredContours;
+    for (size_t i = 0; i < contours.size(); ++i) {
+        const std::vector<Point> &contour = contours[i];
+        const std::vector<Point> *parentContour = nullptr;
+        for (size_t j = 0; j < contours.size(); ++j) {
+            if (i == j) 
+                continue;
+            const std::vector<Point> &otherContour = contours[j];
+            bool isInside = true;
+            for (const Point &pt : contour) {
+                if (pointPolygonTest(otherContour, pt, false) <= 0) {
+                    isInside = false;
+                    break;
+                }
+            }
+            if (isInside) {
+                if (parentContour == nullptr || contourArea(otherContour) > contourArea(*parentContour)) {
+                    parentContour = &otherContour;
+                }
+            }
+        }
+        if (parentContour == nullptr) {
+            filteredContours.push_back(contour);
+        }
+    }
+    return filteredContours;
+}
+
+std::vector<std::vector<Point>> DeteccionCodigos::getContours(const Mat &thresholdedImage, const Mat &image) {
+    vector<vector<Point>> contours;
+    vector<Vec4i> hierarchy;
+
+    // Encontrar contornos
+    findContours(thresholdedImage, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+
+    vector<vector<Point>> filteredContours;
+    double imageArea = image.rows * image.cols;
+    double minInfluence = 0.01;
+
+    for (const auto &contour : contours) {
+        double area = contourArea(contour);
+        Rect boundingBox = boundingRect(contour);
+        double influence = area / imageArea;
+
+        // Filtrar por área e influencia
+        if (area >= 200 && area <= 25000 && influence >= minInfluence) {
+            // Ignorar contornos cercanos al borde
+            if (boundingBox.x > 10 && boundingBox.y > 10 &&
+                boundingBox.x + boundingBox.width < image.cols - 10 &&
+                boundingBox.y + boundingBox.height < image.rows - 10) {
+                filteredContours.push_back(contour);
+            }
         }
     }
 
-    // Crear una cadena con el resultado final concatenado 
-    QString resultadoFinal; // Declarar fuera del bucle para acumular los resultados
-    for (char c : resultados) {
-        resultadoFinal.append(QChar(c)); // Agregar cada carácter al QString
-    }
+    // Segmentar contornos
+	auto [squareContours, rectangularContours] = classifyContours(filteredContours, image.size());
 
-    // Mostrar el resultado en la QLabel del .ui
-    ui.labelcodigo->setText(resultadoFinal);
+    // Filtrar contornos que están dentro de otros
+    filteredContours = filterInsideContours(rectangularContours);
+
+    return filteredContours;
+}
+
+std::vector<std::vector<std::vector<Point>>> DeteccionCodigos::separateContoursBySegments(const std::vector<std::vector<Point>> &contours, int imageWidth) {
+    // Crear un vector de 4 segmentos
+    std::vector<std::vector<std::vector<Point>>> segments(4);
+    for (const auto &contour : contours) {
+        Rect boundingBox = boundingRect(contour); // Obtener el rectángulo delimitador
+        int centerX = boundingBox.x + boundingBox.width / 2; // Calcular el centro en X
+
+        // Determinar a qué segmento pertenece
+        int segment = centerX / ( imageWidth / 4 );
+        if (segment >= 0 && segment < 4) {
+            segments[segment].push_back(contour);
+        }
+    }
+    return segments;
+}
+
+std::vector<std::vector<std::vector<Point>>> DeteccionCodigos::orderContours(const std::vector<std::vector<std::vector<Point>>> &segments) {
+    std::vector<std::vector<std::vector<Point>>> orderedSegments;
+
+    for (const auto &segment : segments) {
+        if (segment.size() <= 1) {
+            // Si el segmento tiene 0 o 1 contorno, no se ordena
+            orderedSegments.push_back(segment);
+        }
+        else if (segment.size() == 2) {
+            // Si el segmento tiene exactamente 2 contornos
+            Rect boundingBox1 = boundingRect(segment[0]);
+            Rect boundingBox2 = boundingRect(segment[1]);
+
+            bool isWide1 = boundingBox1.width > boundingBox1.height;
+            bool isWide2 = boundingBox2.width > boundingBox2.height;
+
+            std::vector<std::vector<Point>> sortedSegment = segment;
+
+            if (isWide1 && isWide2) {
+                // Ordenar por coordenada Y
+                sort(sortedSegment.begin(), sortedSegment.end(),
+                     [](const std::vector<Point> &a, const std::vector<Point> &b) {
+                    return boundingRect(a).y < boundingRect(b).y;
+                });
+            }
+            else if (!isWide1 && !isWide2) {
+                // Ordenar por coordenada X
+                sort(sortedSegment.begin(), sortedSegment.end(),
+                     [](const std::vector<Point> &a, const std::vector<Point> &b) {
+                    return boundingRect(a).x < boundingRect(b).x;
+                });
+            }
+            orderedSegments.push_back(sortedSegment);
+        }
+    }
+    return orderedSegments;
+}
+
+std::vector<double> DeteccionCodigos::getAreaRatio(const std::vector<std::vector<Point>> &contours, const Mat &image) {
+    // Calcular el área total de la imagen dividida por 4
+    double imageArea = ( image.rows * image.cols ) / 4.0;
+    std::vector<double> areaRatios;
+    for (const auto &contour : contours) {
+        // Calcular el área del contorno
+        double area = contourArea(contour);
+        // Calcular la relación del área del contorno con respecto al área de la imagen
+        double areaRatio = area / imageArea;
+        // Redondear el resultado y almacenarlo
+        areaRatios.push_back(areaRatio);
+    }
+    return areaRatios;
+}
+
+std::vector<SegmentInfo> DeteccionCodigos::getSegmentInfo(const std::vector<std::vector<std::vector<Point>>> &orderedSegments, const Mat &image) {
+    std::vector<SegmentInfo> segmentInfoList;
+
+    for (const auto &segment : orderedSegments) {
+        SegmentInfo info;
+        info.numContours = segment.size();
+
+        // Calcular las orientaciones
+        for (const auto &contour : segment) {
+            Rect boundingBox = boundingRect(contour);
+            string orientation = ( boundingBox.width > boundingBox.height ) ? "horizontal" : "vertical";
+            info.orientations.push_back(orientation);
+        }
+
+        // Calcular las relaciones de área
+        info.areaRatios = getAreaRatio(segment, image);
+
+        // Relación de las áreas si hay exactamente 2 contornos
+        if (info.numContours == 2) {
+            double area1 = contourArea(segment[0]);
+            double area2 = contourArea(segment[1]);
+            info.areaRatioRelation = ( area1 / area2 );
+        }
+        else {
+            info.areaRatioRelation = -1; // Usar -1 como indicador de "no aplicable"
+        }
+        segmentInfoList.push_back(info);
+    }
+    return segmentInfoList;
+}
+
+std::string DeteccionCodigos::decodeNumber(const std::vector<SegmentInfo> &segmentInfo) {
+    std::string segmentNumber;
+
+    for (int i = 0; i < 4; ++i) {
+        // Validar si el segmento tiene información
+        if (i >= segmentInfo.size()) {
+            segmentNumber += 'X';
+            continue;
+        }
+
+        const SegmentInfo &info = segmentInfo[i];
+        size_t numContours = info.numContours;
+        const std::vector<std::string> &orientations = info.orientations;
+        const std::vector<double> &areaRatios = info.areaRatios;
+        double areaRatioRelation = info.areaRatioRelation;
+
+        if (numContours == 0) {
+            segmentNumber += '0';
+        }
+        else if (numContours == 1) {
+            if (orientations[0] == "horizontal") {
+                segmentNumber += '8';
+            }
+            else {
+                if (areaRatios[0] < 0.15) {
+                    segmentNumber += '1';
+                }
+                else {
+                    segmentNumber += '5';
+                }
+            }
+        }
+        else if (numContours == 2) {
+            if (orientations[0] == "horizontal") {
+                if (areaRatioRelation > 1.2) {
+                    segmentNumber += '7';
+                }
+                else if (areaRatioRelation < 0.8) {
+                    segmentNumber += '9';
+                }
+                else {
+                    segmentNumber += '3';
+                }
+            }
+            else {
+                if (areaRatioRelation > 1.2) {
+                    segmentNumber += '6';
+                }
+                else if (areaRatioRelation < 0.8) {
+                    segmentNumber += '4';
+                }
+                else {
+                    segmentNumber += '2';
+                }
+            }
+        }
+        else {
+            segmentNumber += 'X';
+        }
+    }
+    return segmentNumber;
+}
+
+
+void DeteccionCodigos::ProcesarImagen()
+{
+    // Implemetar funcion
+}
+
+void DeteccionCodigos::DecodificarCodigoDeBarras()
+{
+    // Implementar funcion
 }
 
 void DeteccionCodigos::SaveImageButton()
 {
-
+    // Implementar funcion
 }
 
 void DeteccionCodigos::SegmentarImagen()
 {
-
+	extractCodes(imagenRoja, imagenVerde);
 }
