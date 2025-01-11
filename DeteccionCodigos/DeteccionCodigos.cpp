@@ -160,6 +160,11 @@ void DeteccionCodigos::ViewGreenMask(bool captura) {
 void DeteccionCodigos::SaveDecodedCode()
 {
     qDebug() << "Guardando codigo decodificado...";
+    // Exportar la imagenFinal a un archivo de imagen
+	QString fileName = QFileDialog::getSaveFileName(this, tr("Guardar imagen"), "", tr("Archivos de imagen (*.jpg)"));
+	if (!fileName.isEmpty()) {
+		imwrite(fileName.toStdString(), imagenFinal);
+	}
 }
 
 Mat DeteccionCodigos::BlurImage(const Mat& image, uint8_t kernerSsize) {

@@ -7,6 +7,7 @@
 #include <QMessageBox>
 #include <QTimer>
 #include <QDebug>
+#include <QFileDialog>
 #include <cmath>
 #include <algorithm>
 

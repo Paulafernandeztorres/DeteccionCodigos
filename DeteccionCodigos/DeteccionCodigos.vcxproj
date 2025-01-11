@@ -112,7 +112,10 @@
   <ItemGroup>
     <ClCompile Include="VideoAcquisition.cpp" />
     <QtRcc Include="DeteccionCodigos.qrc" />
-    <QtUic Include="DeteccionCodigos.ui" />
+    <QtUic Include="DeteccionCodigos.ui">
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </DeploymentContent>
+    </QtUic>
     <QtMoc Include="DeteccionCodigos.h" />
     <ClCompile Include="DeteccionCodigos.cpp" />
     <ClCompile Include="main.cpp" />
