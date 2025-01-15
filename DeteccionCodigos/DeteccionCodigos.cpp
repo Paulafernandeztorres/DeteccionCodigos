@@ -16,9 +16,11 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
     ui.setupUi(this);
 
     // Inicialización del objeto de adquisición de video con la cámara predeterminada (ID 0).
-    camera = new CVideoAcquisition(0);
+    //camera = new CVideoAcquisition(0);
     // También se podría usar un flujo RTSP en lugar de la cámara local.
     // camera = new CVideoAcquisition("rtsp://admin:admin@192.168.1.101:8554/profile0");
+    // Flujo RTSP del ESP32
+    camera = new CVideoAcquisition("rtsp://10.220.151.99:8554/mjpeg/1");
 
     qDebug() << "Conectando con la cámara...";
 
@@ -381,7 +383,7 @@ Mat DeteccionCodigos::getGreenMask(const Mat &image) {
     Mat mascaraVerde;
 
     // Rango del verde en el espacio HSV: H [30, 90], S [20, 255], V [20, 255]
-    inRange(image, Scalar(30, 20, 20), Scalar(90, 255, 255), mascaraVerde);
+    inRange(image, Scalar(30, 55, 55), Scalar(90, 255, 255), mascaraVerde);
 
     // Retornar la máscara generada
     return mascaraVerde;
@@ -486,7 +488,7 @@ std::vector<std::vector<Point>> DeteccionCodigos::findFilteredContours(const Mat
 
         // Calcular el 1% del área total de la imagen (para establecer umbrales de área)
         double areaImage = image.rows * image.cols;
-        double umbralBajoArea = 0.05 * areaImage; // 5% del área de la imagen
+        double umbralBajoArea = 0.01 * areaImage; // 5% del área de la imagen
         double umbralAltoArea = 0.25 * areaImage; // 25% del área de la imagen
 
         // Calcular la relación de aspecto (aspect ratio) del rectángulo delimitador
@@ -628,10 +630,10 @@ std::vector<std::pair<ContourInfo, ContourInfo>> DeteccionCodigos::matchContours
                 continue; // Saltar este contorno verde por estar demasiado lejos
             }
 
-            // Paso 8: Descartar contornos que estén demasiado cerca (más de 2.8 veces el ancho del contorno rojo)
-            if (centerDistance < 2.8 * redContour.width) {
-                continue; // Saltar este contorno verde por estar demasiado cerca
-            }
+            //// Paso 8: Descartar contornos que estén demasiado cerca (más de 2.8 veces el ancho del contorno rojo)
+            //if (centerDistance < 2 * redContour.width) {
+            //    continue; // Saltar este contorno verde por estar demasiado cerca
+            //}
 
             // Paso 9: Calcular la diferencia de ángulo entre los contornos
             double angleDiff = std::abs(redContour.angle - greenContour.angle);
