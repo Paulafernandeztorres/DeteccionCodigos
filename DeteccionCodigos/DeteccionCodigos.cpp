@@ -625,15 +625,15 @@ std::vector<std::pair<ContourInfo, ContourInfo>> DeteccionCodigos::matchContours
             // Paso 6: Calcular la distancia entre los centros de los contornos
             double centerDistance = cv::norm(redContour.center - greenContour.center);
 
-            // Paso 7: Descartar contornos que estén demasiado lejos (más de 3.2 veces el ancho del contorno rojo)
-            if (centerDistance > 3.2 * redContour.width) {
+            // Paso 7: Descartar contornos que estén demasiado lejos (más de 3.5 veces el ancho del contorno rojo)
+            if (centerDistance >  redContour.perimeter / 2.5) {
                 continue; // Saltar este contorno verde por estar demasiado lejos
             }
 
-            //// Paso 8: Descartar contornos que estén demasiado cerca (más de 2.8 veces el ancho del contorno rojo)
-            //if (centerDistance < 2 * redContour.width) {
-            //    continue; // Saltar este contorno verde por estar demasiado cerca
-            //}
+            //// Paso 8: Descartar contornos que estén demasiado cerca (más de 2.5 veces el ancho del contorno rojo)
+            if (centerDistance < redContour.perimeter / 3.5) {
+                continue; // Saltar este contorno verde por estar demasiado cerca
+            }
 
             // Paso 9: Calcular la diferencia de ángulo entre los contornos
             double angleDiff = std::abs(redContour.angle - greenContour.angle);
