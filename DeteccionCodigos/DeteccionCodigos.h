@@ -15,7 +15,7 @@
  * @enum ViewMode
  * @brief Enum para definir los diferentes modos de visualización disponibles.
  */
-enum ViewMode {
+enum ViewMode { 
     Normal,      /**< Modo normal, muestra la imagen original */
     Decoded,     /**< Modo de visualización de códigos decodificados */
     RedMask,     /**< Modo para visualizar la máscara roja */

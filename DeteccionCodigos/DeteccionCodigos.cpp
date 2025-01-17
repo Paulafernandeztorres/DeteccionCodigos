@@ -20,9 +20,9 @@ DeteccionCodigos::DeteccionCodigos(QWidget *parent)
     // También se podría usar un flujo RTSP en lugar de la cámara local.
     // camera = new CVideoAcquisition("rtsp://admin:admin@192.168.1.101:8554/profile0");
     // Flujo RTSP del ESP32
-    camera = new CVideoAcquisition("rtsp://10.220.151.99:8554/mjpeg/1");
+    camera = new CVideoAcquisition("rtsp://10.119.60.99:8554/mjpeg/1");
 
-    qDebug() << "Conectando con la cámara...";
+    qDebug() << "Conectando con la camara...";
 
     // Configuración de botones de la interfaz como botones de tipo "checkable" (pueden mantenerse pulsados).
     ui.btnStop->setCheckable(true);
@@ -665,7 +665,7 @@ std::vector<std::pair<ContourInfo, ContourInfo>> DeteccionCodigos::matchContours
     }
 
     // Paso 14: Información de depuración para verificar el número de contornos emparejados
-    qDebug() << "Numero de contornos emparejados: " << matches.size();
+    /*qDebug() << "Numero de contornos emparejados: " << matches.size();*/
 
     // Paso 15: Devolver el vector de pares de contornos emparejados
     return matches;
@@ -741,7 +741,7 @@ std::vector<Mat> DeteccionCodigos::cutBoundingBox(const std::vector<pair<Contour
             extractedImages.push_back(extractedImage);
         }
         else {
-            std::cout << "La bounding box transformada está fuera de los límites." << std::endl;
+            std::cout << "La bounding box transformada está fuera de los limites." << std::endl;
         }
     }
 
